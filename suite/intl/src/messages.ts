@@ -2689,6 +2689,11 @@ export const messages = defineMessages({
         defaultMessage: 'Ledger accounts',
         id: 'TR_CARDANO_LEDGER_ACCOUNTS',
     },
+    TR_ECDSA_ACCOUNTS: {
+        defaultMessage: 'ECDSA accounts',
+        id: 'TR_ECDSA_ACCOUNTS',
+    },
+
     TR_ACCOUNT_TYPE_LEGACY: {
         defaultMessage: 'Legacy',
         id: 'TR_ACCOUNT_TYPE_LEGACY',
@@ -2724,6 +2729,18 @@ export const messages = defineMessages({
         id: 'TR_ACCOUNT_TYPE_SEGWIT',
         dynamic: true,
     },
+    TR_ACCOUNT_TYPE_ECDSA: {
+        defaultMessage: 'ECDSA',
+        id: 'TR_ACCOUNT_TYPE_ECDSA',
+        dynamic: true,
+    },
+
+    TR_ACCOUNT_TYPE_ECDSA_DESC: {
+        defaultMessage: 'Standard CKB account using ECDSA (secp256k1) signing.',
+        id: 'TR_ACCOUNT_TYPE_ECDSA_DESC',
+        dynamic: true,
+    },
+
     TR_LOG: {
         defaultMessage: 'Application log',
         description: 'application event and error',

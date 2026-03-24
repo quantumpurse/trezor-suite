@@ -16,6 +16,8 @@ export const networkIcons = {
     bsc_inverse: require('../cryptoAssets/networkIcons/bsc_inverse.svg'),
     btc: require('../cryptoAssets/networkIcons/btc.svg'),
     btc_inverse: require('../cryptoAssets/networkIcons/btc_inverse.svg'),
+    ckb: require('../cryptoAssets/networkIcons/ckb.svg'),
+    ckb_inverse: require('../cryptoAssets/networkIcons/ckb_inverse.svg'),
     dash_inverse: require('../cryptoAssets/networkIcons/dash_inverse.svg'),
     doge: require('../cryptoAssets/networkIcons/doge.svg'),
     etc: require('../cryptoAssets/networkIcons/etc.svg'),
