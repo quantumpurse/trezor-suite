@@ -7972,6 +7972,248 @@
                 }
             }
         },
+        "CKBGetAddress": {
+            "fields": {
+                "address_n": {
+                    "rule": "repeated",
+                    "type": "uint32",
+                    "id": 1,
+                    "options": {
+                        "packed": false
+                    }
+                },
+                "show_display": {
+                    "type": "bool",
+                    "id": 2
+                },
+                "network": {
+                    "type": "string",
+                    "id": 3,
+                    "options": {
+                        "default": "Mainnet"
+                    }
+                },
+                "chunkify": {
+                    "type": "bool",
+                    "id": 4
+                }
+            }
+        },
+        "CKBAddress": {
+            "fields": {
+                "address": {
+                    "rule": "required",
+                    "type": "string",
+                    "id": 1
+                }
+            }
+        },
+        "CKBCellInput": {
+            "fields": {
+                "previous_output_tx_hash": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 1
+                },
+                "previous_output_index": {
+                    "rule": "required",
+                    "type": "uint32",
+                    "id": 2
+                },
+                "since": {
+                    "type": "uint64",
+                    "id": 3,
+                    "options": {
+                        "default": 0
+                    }
+                }
+            }
+        },
+        "CKBCellOutput": {
+            "fields": {
+                "capacity": {
+                    "rule": "required",
+                    "type": "uint64",
+                    "id": 1
+                },
+                "lock_code_hash": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 2
+                },
+                "lock_hash_type": {
+                    "rule": "required",
+                    "type": "uint32",
+                    "id": 3
+                },
+                "lock_args": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 4
+                },
+                "type_code_hash": {
+                    "type": "bytes",
+                    "id": 5
+                },
+                "type_hash_type": {
+                    "type": "uint32",
+                    "id": 6
+                },
+                "type_args": {
+                    "type": "bytes",
+                    "id": 7
+                },
+                "data": {
+                    "type": "bytes",
+                    "id": 8
+                }
+            }
+        },
+        "CKBCellDep": {
+            "fields": {
+                "tx_hash": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 1
+                },
+                "index": {
+                    "rule": "required",
+                    "type": "uint32",
+                    "id": 2
+                },
+                "dep_type": {
+                    "rule": "required",
+                    "type": "uint32",
+                    "id": 3
+                }
+            }
+        },
+        "CKBSignTx": {
+            "fields": {
+                "address_n": {
+                    "rule": "repeated",
+                    "type": "uint32",
+                    "id": 1,
+                    "options": {
+                        "packed": false
+                    }
+                },
+                "network": {
+                    "type": "string",
+                    "id": 2,
+                    "options": {
+                        "default": "Mainnet"
+                    }
+                },
+                "inputs_count": {
+                    "rule": "required",
+                    "type": "uint32",
+                    "id": 3
+                },
+                "outputs_count": {
+                    "rule": "required",
+                    "type": "uint32",
+                    "id": 4
+                },
+                "cell_deps_count": {
+                    "type": "uint32",
+                    "id": 5,
+                    "options": {
+                        "default": 0
+                    }
+                },
+                "fee": {
+                    "type": "uint64",
+                    "id": 6
+                },
+                "chunkify": {
+                    "type": "bool",
+                    "id": 7
+                }
+            }
+        },
+        "CKBTxRequestType": {
+            "values": {
+                "TXINPUT": 0,
+                "TXOUTPUT": 1,
+                "TXCELLDEP": 2,
+                "TXFINISHED": 3
+            }
+        },
+        "CKBTxRequestDetails": {
+            "fields": {
+                "request_index": {
+                    "type": "uint32",
+                    "id": 1
+                }
+            }
+        },
+        "CKBTxRequestSerialized": {
+            "fields": {
+                "signature": {
+                    "type": "bytes",
+                    "id": 1
+                },
+                "tx_hash": {
+                    "type": "bytes",
+                    "id": 2
+                }
+            }
+        },
+        "CKBTxRequest": {
+            "fields": {
+                "request_type": {
+                    "type": "CKBTxRequestType",
+                    "id": 1
+                },
+                "details": {
+                    "type": "CKBTxRequestDetails",
+                    "id": 2
+                },
+                "serialized": {
+                    "type": "CKBTxRequestSerialized",
+                    "id": 3
+                }
+            }
+        },
+        "CKBTxAckInput": {
+            "fields": {
+                "input": {
+                    "type": "CKBCellInput",
+                    "id": 1
+                }
+            }
+        },
+        "CKBTxAckOutput": {
+            "fields": {
+                "output": {
+                    "type": "CKBCellOutput",
+                    "id": 1
+                }
+            }
+        },
+        "CKBTxAckCellDep": {
+            "fields": {
+                "cell_dep": {
+                    "type": "CKBCellDep",
+                    "id": 1
+                }
+            }
+        },
+        "CKBSignedTx": {
+            "fields": {
+                "signature": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 1
+                },
+                "tx_hash": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 2
+                }
+            }
+        },
         "MessageType": {
             "edition": "proto2",
             "options": {
@@ -8239,7 +8481,15 @@
                 "TronWithdrawUnfreeze": 2209,
                 "TronVoteWitnessContract": 2210,
                 "TelemetryGet": 1100,
-                "Telemetry": 1101
+                "Telemetry": 1101,
+                "CKBGetAddress": 5500,
+                "CKBAddress": 5501,
+                "CKBSignTx": 5502,
+                "CKBTxRequest": 5503,
+                "CKBTxAckInput": 5504,
+                "CKBTxAckOutput": 5505,
+                "CKBTxAckCellDep": 5506,
+                "CKBSignedTx": 5507
             }
         }
     }
