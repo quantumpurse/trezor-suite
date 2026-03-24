@@ -28,7 +28,9 @@ export type NetworkSymbol =
     | 'thod'
     | 'txrp'
     | 'txlm'
-    | 'dsol';
+    | 'dsol'
+    | 'ckb'
+    | 'tckb';
 
 export const asNetworkSymbol = (value: string) => value as NetworkSymbol;
 
@@ -40,6 +42,7 @@ export type NetworkSymbolExtended = NetworkSymbol | (string & {});
 
 export type NetworkType =
     | 'bitcoin'
+    | 'ckb'
     | 'ethereum'
     | 'ripple'
     | 'cardano'
@@ -48,7 +51,7 @@ export type NetworkType =
     | 'tron';
 
 type UtilityAccountType = 'normal' | 'imported' | 'placeholder'; // reserved accountTypes to stand in for a real accountType
-type RealAccountType = 'legacy' | 'segwit' | 'coinjoin' | 'taproot' | 'ledger';
+type RealAccountType = 'legacy' | 'segwit' | 'coinjoin' | 'taproot' | 'ledger' | 'ecdsa';
 export type AccountType = UtilityAccountType | RealAccountType;
 
 export const TREZOR_CONNECT_BACKENDS = [
@@ -59,6 +62,7 @@ export const TREZOR_CONNECT_BACKENDS = [
     'solana',
     'stellar',
     'evm-rpc',
+    'ckb',
 ] as const;
 
 export const NON_STANDARD_BACKENDS = ['coinjoin'] as const;

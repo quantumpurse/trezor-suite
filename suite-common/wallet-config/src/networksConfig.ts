@@ -709,6 +709,44 @@ export const networks = {
         tradeCryptoId: 'test-tron',
         yieldXyzId: null,
     },
+    ckb: {
+        symbol: 'ckb',
+        displaySymbol: 'CKB',
+        name: 'Nervos CKB',
+        networkType: 'ckb',
+        bip43Path: "m/44'/309'/i'", // ECDSA (default), CKB slip44=309
+        decimals: 8,
+        testnet: false,
+        explorer: getExplorerUrls('https://explorer.nervos.org', 'ckb'),
+        features: ['graph'],
+        support: {
+            [DeviceModelInternal.T3W1]: '2.6.1',
+        },
+        backendTypes: ['ckb'],
+        accountTypes: {},
+        coingeckoId: 'nervos-network',
+        tradeCryptoId: 'nervos-network',
+        yieldXyzId: null,
+    },
+    tckb: {
+        symbol: 'tckb',
+        displaySymbol: 'tCKB',
+        name: 'Nervos CKB Testnet',
+        networkType: 'ckb',
+        bip43Path: "m/44'/309'/i'", // ECDSA (default), CKB slip44=309
+        decimals: 8,
+        testnet: true,
+        explorer: getExplorerUrls('https://pudge.explorer.nervos.org', 'ckb'),
+        features: ['graph'],
+        support: {
+            [DeviceModelInternal.T3W1]: '2.6.1',
+        },
+        backendTypes: ['ckb'],
+        accountTypes: {},
+        coingeckoId: undefined,
+        tradeCryptoId: undefined,
+        yieldXyzId: null,
+    },
 } as const satisfies Networks;
 
 type NetworksConfigs = typeof networks;
