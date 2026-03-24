@@ -109,6 +109,13 @@ type AccountNetworkSpecific =
           marker: undefined;
           stellarCursor: AccountInfo['stellarCursor'];
           page: undefined;
+      }
+    | {
+          networkType: 'ckb';
+          misc: undefined;
+          marker: undefined;
+          stellarCursor: undefined;
+          page: AccountInfo['page'];
       };
 
 // decides if account is using TrezorConnect/blockchain-link or other non-standard api

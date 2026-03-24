@@ -15,6 +15,11 @@ export const getExplorerUrls = (
             tx: `${baseUrl}/tx/`,
             address: `${baseUrl}/address/`,
         },
+        ckb: {
+            base: baseUrl,
+            tx: `${baseUrl}/transaction/`,
+            address: `${baseUrl}/address/`,
+        },
         ethereum: {
             base: baseUrl,
             tx: `${baseUrl}/tx/`,

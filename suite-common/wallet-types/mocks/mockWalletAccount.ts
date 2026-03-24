@@ -64,13 +64,22 @@ export const networkSpecificDefaultStellar = {
     networkType: 'stellar' as const,
 };
 
+const networkSpecificDefaultCkb = {
+    networkType: 'ckb' as const,
+    misc: undefined,
+    marker: undefined,
+    stellarCursor: undefined,
+    page: { index: 1, size: 25, total: 1 },
+};
+
 type NetworkSpecificDefault =
     | typeof networkSpecificDefaultBitcoin
     | typeof networkSpecificDefaultEthereum
     | typeof networkSpecificDefaultSolana
     | typeof networkSpecificDefaultRipple
     | typeof networkSpecificDefaultCardano
-    | typeof networkSpecificDefaultStellar;
+    | typeof networkSpecificDefaultStellar
+    | typeof networkSpecificDefaultCkb;
 
 const networkTypeMap: Record<NetworkSymbol, NetworkSpecificDefault> = {
     // Bitcoin-like
@@ -108,6 +117,10 @@ const networkTypeMap: Record<NetworkSymbol, NetworkSpecificDefault> = {
     thod: networkSpecificDefaultBitcoin,
     txrp: networkSpecificDefaultBitcoin,
     txlm: networkSpecificDefaultBitcoin,
+
+    // CKB
+    ckb: networkSpecificDefaultCkb,
+    tckb: networkSpecificDefaultCkb,
 };
 
 type MandatoryAccountData = {
