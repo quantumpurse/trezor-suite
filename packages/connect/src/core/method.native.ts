@@ -7,6 +7,7 @@ import * as Methods from '../api';
 
 const moduleMethods = {
     cardano: require('../api/cardano/api'),
+    ckb: require('../api/ckb/api'),
     ethereum: require('../api/ethereum/api'),
     monero: require('../api/monero/api'),
     ripple: require('../api/ripple/api'),
