@@ -1,5 +1,6 @@
 export const TYPES = {
     bitcoin: 'Bitcoin',
+    ckb: 'Nervos CKB',
     ethereum: 'Ethereum',
     stellar: 'Stellar',
     cardano: 'Cardano',
@@ -14,6 +15,7 @@ export type NetworkType = keyof typeof TYPES;
 
 export const MODULES = [
     'cardano',
+    'ckb',
     'ethereum',
     'monero',
     'ripple',

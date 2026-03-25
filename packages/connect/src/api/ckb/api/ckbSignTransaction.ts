@@ -1,0 +1,236 @@
+import { ERRORS } from '@trezor/connect-common/src/constants';
+import type { MessagesSchema as PROTO } from '@trezor/protobuf';
+import { Assert } from '@trezor/schema-utils';
+
+import type { MethodPermission } from '../../../core/AbstractMethod';
+import { AbstractMethod } from '../../../core/AbstractMethod';
+import { getCoinInfo } from '../../../data/coinInfo';
+import type { TypedCall } from '../../../device/DeviceCommands';
+import { CKBSignTransaction as CKBSignTransactionSchema } from '../../../types/api/ckb';
+import { validatePath } from '../../../utils/pathUtils';
+import { getFirmwareRange } from '../../common/paramsValidator';
+
+const HASH_TYPE_MAP: Record<string, number> = {
+    data: 0,
+    type: 1,
+    data1: 2,
+    data2: 4,
+};
+
+const DEP_TYPE_MAP: Record<string, number> = {
+    code: 0,
+    dep_group: 1,
+};
+
+// Strip '0x' prefix from hex strings for protobuf bytes fields.
+// Buffer.from('0xABCD', 'hex') silently returns empty buffer,
+// so the prefix MUST be removed before protobuf encoding.
+const stripHex = (hex: string): string => (hex.startsWith('0x') ? hex.slice(2) : hex);
+
+type CkbNetwork = 'Mainnet' | 'Testnet';
+
+type CKBSignTxInitialParams = {
+    address_n: number[];
+    network: CkbNetwork;
+    inputs_count: number;
+    outputs_count: number;
+    cell_deps_count: number;
+    fee: number;
+    chunkify: boolean;
+};
+
+// Streaming loop: process CKBTxRequest from the device
+const processCkbTxRequest = async (
+    typedCall: TypedCall,
+    txRequest: PROTO.CKBTxRequest,
+    inputs: PROTO.CKBCellInput[],
+    outputs: PROTO.CKBCellOutput[],
+    cellDeps: PROTO.CKBCellDep[],
+): Promise<{ signature: string; tx_hash: string }> => {
+    const { request_type, details, serialized } = txRequest;
+
+    if (request_type === 'TXFINISHED') {
+        // TXFINISHED
+        if (!serialized || !serialized.signature || !serialized.tx_hash) {
+            throw ERRORS.TypedError(
+                'Runtime',
+                'CKB signing: Device finished but no signature/tx_hash returned',
+            );
+        }
+
+        return {
+            signature: serialized.signature,
+            tx_hash: serialized.tx_hash,
+        };
+    }
+
+    const requestIndex = details?.request_index ?? 0;
+
+    if (request_type === 'TXINPUT') {
+        // TXINPUT
+        const input = inputs[requestIndex];
+        if (!input) {
+            throw ERRORS.TypedError(
+                'Runtime',
+                `CKB signing: Requested input at index ${requestIndex} but only ${inputs.length} inputs available`,
+            );
+        }
+        const { message } = await typedCall('CKBTxAckInput', 'CKBTxRequest', {
+            input,
+        });
+
+        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps);
+    }
+
+    if (request_type === 'TXOUTPUT') {
+        // TXOUTPUT
+        const output = outputs[requestIndex];
+        if (!output) {
+            throw ERRORS.TypedError(
+                'Runtime',
+                `CKB signing: Requested output at index ${requestIndex} but only ${outputs.length} outputs available`,
+            );
+        }
+        const { message } = await typedCall('CKBTxAckOutput', 'CKBTxRequest', {
+            output,
+        });
+
+        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps);
+    }
+
+    if (request_type === 'TXCELLDEP') {
+        // TXCELLDEP
+        const cellDep = cellDeps[requestIndex];
+        if (!cellDep) {
+            throw ERRORS.TypedError(
+                'Runtime',
+                `CKB signing: Requested cell_dep at index ${requestIndex} but only ${cellDeps.length} cell_deps available`,
+            );
+        }
+        const { message } = await typedCall('CKBTxAckCellDep', 'CKBTxRequest', {
+            cell_dep: cellDep,
+        });
+
+        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps);
+    }
+
+    throw ERRORS.TypedError('Runtime', `CKB signing: Unknown request_type ${request_type}`);
+};
+
+export default class CkbSignTransaction extends AbstractMethod<
+    'ckbSignTransaction',
+    CKBSignTxInitialParams
+> {
+    inputs: PROTO.CKBCellInput[] = [];
+    outputs: PROTO.CKBCellOutput[] = [];
+    cellDeps: PROTO.CKBCellDep[] = [];
+
+    get requiredPermissions(): MethodPermission[] {
+        return ['read', 'write'];
+    }
+
+    init() {
+        const { payload } = this;
+        // validate incoming parameters
+        Assert(CKBSignTransactionSchema, payload);
+
+        const path = validatePath(payload.path, 3);
+        const { transaction, network, fee, chunkify } = payload;
+
+        this.firmwareRange = getFirmwareRange(
+            this.name,
+            getCoinInfo(network === 'Testnet' ? 'tckb' : 'ckb'),
+            this.firmwareRange,
+        );
+
+        // Extend 3-segment account path to 5-segment address path (append /0/0)
+        const fullPath = path.length === 3 ? [...path, 0, 0] : path;
+
+        if (transaction.version !== 0) {
+            throw ERRORS.TypedError(
+                'Method_InvalidParameter',
+                'Only CKB transaction version 0 is supported',
+            );
+        }
+
+        if (transaction.headerDeps.length > 0) {
+            throw ERRORS.TypedError(
+                'Method_InvalidParameter',
+                'CKB headerDeps are not supported yet',
+            );
+        }
+
+        if (transaction.outputsData.length !== transaction.outputs.length) {
+            throw ERRORS.TypedError(
+                'Method_InvalidParameter',
+                'CKB outputsData length must match outputs length',
+            );
+        }
+
+        // Prepare inputs for streaming
+        this.inputs = transaction.inputs.map(input => ({
+            previous_output_tx_hash: stripHex(input.previousOutput.txHash),
+            previous_output_index: Number(input.previousOutput.index),
+            since: Number(input.since || '0'),
+        }));
+
+        // Prepare outputs for streaming
+        this.outputs = transaction.outputs.map((output, i) => {
+            const outputData = transaction.outputsData[i];
+
+            if (typeof outputData !== 'string') {
+                throw ERRORS.TypedError(
+                    'Method_InvalidParameter',
+                    `CKB outputsData is missing for output index ${i}`,
+                );
+            }
+
+            return {
+                capacity: output.capacity,
+                lock_code_hash: stripHex(output.lock.codeHash),
+                lock_hash_type: HASH_TYPE_MAP[output.lock.hashType] ?? 0,
+                lock_args: stripHex(output.lock.args),
+                type_code_hash: output.type?.codeHash ? stripHex(output.type.codeHash) : undefined,
+                type_hash_type:
+                    output.type?.hashType !== undefined
+                        ? (HASH_TYPE_MAP[output.type.hashType] ?? 0)
+                        : undefined,
+                type_args: output.type?.args ? stripHex(output.type.args) : undefined,
+                data: stripHex(outputData),
+            };
+        });
+
+        // Prepare cell deps for streaming
+        this.cellDeps = transaction.cellDeps.map(dep => ({
+            tx_hash: stripHex(dep.outPoint.txHash),
+            index: Number(dep.outPoint.index),
+            dep_type: DEP_TYPE_MAP[dep.depType] ?? 0,
+        }));
+
+        // Initial message sends only counts
+        this.params = {
+            address_n: fullPath,
+            network,
+            inputs_count: this.inputs.length,
+            outputs_count: this.outputs.length,
+            cell_deps_count: this.cellDeps.length,
+            fee: typeof fee === 'undefined' ? 0 : Number(fee),
+            chunkify: typeof chunkify === 'boolean' ? chunkify : false,
+        };
+    }
+
+    get info() {
+        return 'Sign Nervos CKB transaction';
+    }
+
+    async run() {
+        const cmd = this.getDevice().getCommands();
+        const typedCall = cmd.typedCall.bind(cmd);
+
+        // Send initial CKBSignTx with counts only, expect CKBTxRequest back
+        const { message } = await typedCall('CKBSignTx', 'CKBTxRequest', this.params);
+
+        // Enter streaming loop
+        return processCkbTxRequest(typedCall, message, this.inputs, this.outputs, this.cellDeps);
+    }
+}

@@ -33,6 +33,8 @@ import type { changeLanguage } from './changeLanguage';
 import type { changePin } from './changePin';
 import type { changeWipeCode } from './changeWipeCode';
 import type { cipherKeyValue } from './cipherKeyValue';
+import type { ckbGetAddress } from './ckbGetAddress';
+import type { ckbSignTransaction } from './ckbSignTransaction';
 import type { composeTransaction } from './composeTransaction';
 import type { discoverAccounts } from './discoverAccounts';
 import type { dispose } from './dispose';
@@ -424,6 +426,16 @@ export const TrezorConnectTron = Type.Object({
 });
 export type TrezorConnectTron = Static<typeof TrezorConnectTron>;
 
+// Nervos CKB operations
+export const TrezorConnectCkb = Type.Object({
+    // Nervos CKB getAddress
+    ckbGetAddress: Type.Unsafe<typeof ckbGetAddress>(),
+
+    // Nervos CKB signTransaction
+    ckbSignTransaction: Type.Unsafe<typeof ckbSignTransaction>(),
+});
+export type TrezorConnectCkb = Static<typeof TrezorConnectCkb>;
+
 // Evolu identity protocol operations
 export const TrezorConnectEvolu = Type.Object({
     // For internal use, no public documentation.
@@ -452,6 +464,7 @@ export const TrezorConnectSchema = Type.Composite([
     TrezorConnectStellar,
     TrezorConnectTezos,
     TrezorConnectTron,
+    TrezorConnectCkb,
     TrezorConnectEvolu,
 ]);
 
@@ -471,4 +484,5 @@ export interface TrezorConnect
         TrezorConnectStellar,
         TrezorConnectTezos,
         TrezorConnectTron,
+        TrezorConnectCkb,
         TrezorConnectEvolu {}

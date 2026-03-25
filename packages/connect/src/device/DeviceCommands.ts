@@ -199,6 +199,21 @@ export const DeviceCommands = (deviceTypedCall: TypedCallProvider) => {
         address_n: number[],
         derivationType: Messages.CardanoDerivationType = PROTO.CardanoDerivationType.ICARUS_TREZOR,
     ): Promise<AccountDescriptor> => {
+        // CKB: get address from device via CKBGetAddress
+        if (coinInfo.shortcut === 'CKB' || coinInfo.shortcut === 'tCKB') {
+            const ckbPath = [...address_n, 0, 0]; // append change=0, address_index=0
+            const { message } = await typedCall('CKBGetAddress', 'CKBAddress', {
+                address_n: ckbPath,
+                show_display: false,
+                network: coinInfo.shortcut === 'tCKB' ? 'Testnet' : 'Mainnet',
+            });
+
+            return {
+                descriptor: message.address,
+                address_n,
+            };
+        }
+
         if (coinInfo.type === 'bitcoin') {
             const resp = await getHDNode({ address_n }, { coinInfo, validation: false });
 
