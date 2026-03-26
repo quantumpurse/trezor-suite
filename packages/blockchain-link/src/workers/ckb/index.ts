@@ -5,7 +5,13 @@ import {
     ClientPublicTestnet,
 } from '@ckb-ccc/core';
 
-import type { AccountInfo, Response, Transaction, Utxo } from '@trezor/blockchain-link-types';
+import type {
+    AccountBalanceHistory,
+    AccountInfo,
+    Response,
+    Transaction,
+    Utxo,
+} from '@trezor/blockchain-link-types';
 import { MESSAGES, RESPONSES } from '@trezor/blockchain-link-types/src/constants';
 import { CustomError } from '@trezor/blockchain-link-types/src/constants/errors';
 import type * as MessageTypes from '@trezor/blockchain-link-types/src/messages';
@@ -22,6 +28,7 @@ const DEFAULT_PAGE_SIZE = 25;
 type ClientTransactionResponse = NonNullable<Awaited<ReturnType<CccClient['getTransaction']>>>;
 type TransactionFetcher = (hash: string) => Promise<ClientTransactionResponse | undefined>;
 type BlockTimestampFetcher = (blockNum: number) => Promise<number | undefined>;
+type AccountHistoryTransaction = Transaction & { blockTime: number };
 
 const normalizeTxHash = (hash: string) => (hash.startsWith('0x') ? hash : `0x${hash}`);
 const trimHexPrefix = (hash: string) => hash.replace(/^0x/, '');
@@ -67,6 +74,59 @@ const createBlockTimestampFetcher = (client: CccClient): BlockTimestampFetcher =
 
         return undefined;
     };
+};
+
+const aggregateTransactions = (
+    transactions: AccountHistoryTransaction[],
+    groupBy = 3600,
+): AccountBalanceHistory[] => {
+    const result: AccountBalanceHistory[] = [];
+    let index = 0;
+
+    while (index < transactions.length) {
+        const time = Math.floor(transactions[index].blockTime / groupBy) * groupBy;
+        let txsInGroup = index;
+        let received = BigInt(0);
+        let sent = BigInt(0);
+        let sentToSelf = BigInt(0);
+
+        while (
+            txsInGroup < transactions.length &&
+            transactions[txsInGroup].blockTime < time + groupBy
+        ) {
+            const {
+                type,
+                amount,
+                fee,
+                details: { totalInput, totalOutput },
+            } = transactions[txsInGroup];
+
+            if (type === 'recv') {
+                received += BigInt(amount);
+            } else if (type === 'sent') {
+                sent += BigInt(amount) + BigInt(fee);
+            } else if (type === 'self') {
+                sentToSelf += BigInt(totalOutput);
+                sent += BigInt(totalInput);
+                received += BigInt(totalOutput);
+            }
+
+            txsInGroup++;
+        }
+
+        result.push({
+            time,
+            txs: txsInGroup - index,
+            received: received.toString(),
+            sent: sent.toString(),
+            sentToSelf: sentToSelf.toString(),
+            rates: {},
+        });
+
+        index = txsInGroup;
+    }
+
+    return result;
 };
 
 const mapTransaction = async ({
@@ -213,6 +273,65 @@ const mapTransaction = async ({
     };
 };
 
+const getLockScriptTransactions = async ({
+    lockScript,
+    client,
+    page,
+    pageSize,
+}: {
+    lockScript: Awaited<ReturnType<typeof Address.fromString>>['script'];
+    client: CccClient;
+    page?: number;
+    pageSize: number;
+}) => {
+    const fetchTx = createTransactionFetcher(client);
+    const getBlockTimestamp = createBlockTimestampFetcher(client);
+    const transactions: AccountHistoryTransaction[] = [];
+
+    let total = 0;
+    const start = Math.max(0, ((page ?? 1) - 1) * pageSize);
+    const end = start + pageSize;
+
+    for await (const tx of client.findTransactionsByLock(lockScript, undefined, true, 'desc')) {
+        const txResponse = await fetchTx(String(tx.txHash));
+        if (!txResponse) {
+            continue;
+        }
+
+        const blockNum = txResponse.blockNumber ? Number(txResponse.blockNumber) : undefined;
+        const blockTime = blockNum ? await getBlockTimestamp(blockNum) : undefined;
+
+        if (!blockTime) {
+            continue;
+        }
+
+        if (total >= start && total < end) {
+            transactions.push(
+                await mapTransaction({
+                    txResponse,
+                    fetchTx,
+                    getBlockTimestamp,
+                    ownLockScript: lockScript,
+                }).then(mappedTransaction => ({
+                    ...mappedTransaction,
+                    blockTime,
+                })),
+            );
+        }
+
+        total++;
+
+        if (total >= end && page !== undefined) {
+            continue;
+        }
+    }
+
+    return {
+        total,
+        transactions,
+    };
+};
+
 const getInfo = async (request: Request<MessageTypes.GetInfo>) => {
     const client = await request.connect();
     const tip = await client.getTip();
@@ -267,41 +386,24 @@ const getAccountInfo = async (request: Request<MessageTypes.GetAccountInfo>) => 
         // History fetching is best-effort and should not break discovery.
         if (payload.details === 'txs') {
             try {
-                const transactions: AccountInfo['history']['transactions'] = [];
                 const pageSize = payload.pageSize || DEFAULT_PAGE_SIZE;
-                let hasMoreTransactions = false;
-                const fetchTx = createTransactionFetcher(client);
-                const getBlockTimestamp = createBlockTimestampFetcher(client);
-
-                for await (const tx of client.findTransactionsByLock(
+                const pageIndex = payload.page || 1;
+                const { total, transactions } = await getLockScriptTransactions({
                     lockScript,
-                    undefined,
-                    true, // groupByTransaction
-                    'desc',
-                    pageSize + 1,
-                )) {
-                    if (transactions.length >= pageSize) {
-                        hasMoreTransactions = true;
-                        break;
-                    }
-
-                    const txResponse = await fetchTx(String(tx.txHash));
-                    if (txResponse) {
-                        transactions.push(
-                            await mapTransaction({
-                                txResponse,
-                                fetchTx,
-                                getBlockTimestamp,
-                                ownLockScript: lockScript,
-                            }),
-                        );
-                    }
-                }
+                    client,
+                    page: pageIndex,
+                    pageSize,
+                });
 
                 account.history = {
-                    total: hasMoreTransactions ? -1 : transactions.length,
+                    total,
                     unconfirmed: 0,
                     transactions,
+                };
+                account.page = {
+                    index: pageIndex,
+                    size: pageSize,
+                    total: Math.ceil(total / pageSize),
                 };
             } catch {
                 account.history = {
@@ -351,6 +453,10 @@ const getTransaction = async ({ connect, payload }: Request<MessageTypes.GetTran
     } as const;
 };
 
+const getTransactionHex = (_request: Request<MessageTypes.GetTransactionHex>) => {
+    throw new CustomError('worker_runtime', 'getTransactionHex is not supported by the CKB worker');
+};
+
 const pushTransaction = async ({ connect, payload }: Request<MessageTypes.PushTransaction>) => {
     const client = await connect();
     // payload.hex contains the serialized transaction
@@ -359,6 +465,35 @@ const pushTransaction = async ({ connect, payload }: Request<MessageTypes.PushTr
     return {
         type: RESPONSES.PUSH_TRANSACTION,
         payload: txHash.slice(2), // remove '0x' prefix
+    } as const;
+};
+
+const getAccountBalanceHistory = async (
+    request: Request<MessageTypes.GetAccountBalanceHistory>,
+) => {
+    const { payload } = request;
+    const client = await request.connect();
+    const address = await Address.fromString(payload.descriptor, client);
+    const lockScript = address.script;
+
+    const { transactions } = await getLockScriptTransactions({
+        lockScript,
+        client,
+        page: undefined,
+        pageSize: Number.MAX_SAFE_INTEGER,
+    });
+
+    const filteredTransactions = transactions
+        .filter(
+            ({ blockTime }) =>
+                (payload.from || 0) <= blockTime &&
+                blockTime <= (payload.to || Number.MAX_SAFE_INTEGER),
+        )
+        .sort((first, second) => first.blockTime - second.blockTime);
+
+    return {
+        type: RESPONSES.GET_ACCOUNT_BALANCE_HISTORY,
+        payload: aggregateTransactions(filteredTransactions, payload.groupBy),
     } as const;
 };
 
@@ -429,32 +564,48 @@ const unsubscribeBlock = ({ state }: Context) => {
 const subscribe = async (request: Request<MessageTypes.Subscribe>) => {
     const { payload } = request;
 
-    if (payload.type !== 'block') {
-        throw new CustomError('invalid_param', '+type');
+    switch (payload.type) {
+        case 'block':
+            return {
+                type: RESPONSES.SUBSCRIBE,
+                payload: await subscribeBlock(request),
+            } as const;
+        case 'accounts':
+        case 'addresses':
+            return {
+                type: RESPONSES.SUBSCRIBE,
+                payload: { subscribed: false },
+            } as const;
+        default:
+            throw new CustomError('invalid_param', '+type');
     }
-
-    return {
-        type: RESPONSES.SUBSCRIBE,
-        payload: await subscribeBlock(request),
-    } as const;
 };
 
 const unsubscribe = (request: Request<MessageTypes.Unsubscribe>) => {
     const { payload } = request;
 
-    if (payload.type !== 'block') {
-        throw new CustomError('invalid_param', '+type');
+    switch (payload.type) {
+        case 'block':
+            return {
+                type: RESPONSES.UNSUBSCRIBE,
+                payload: unsubscribeBlock(request),
+            } as const;
+        case 'accounts':
+        case 'addresses':
+            return {
+                type: RESPONSES.UNSUBSCRIBE,
+                payload: { subscribed: false },
+            } as const;
+        default:
+            throw new CustomError('invalid_param', '+type');
     }
-
-    return {
-        type: RESPONSES.UNSUBSCRIBE,
-        payload: unsubscribeBlock(request),
-    } as const;
 };
 
 const getAccountUtxo = async (request: Request<MessageTypes.GetAccountUtxo>) => {
     const descriptor = request.payload;
     const client = await request.connect();
+    const fetchTx = createTransactionFetcher(client);
+    const tip = Number(await client.getTip());
 
     try {
         const address = await Address.fromString(descriptor, client);
@@ -463,14 +614,18 @@ const getAccountUtxo = async (request: Request<MessageTypes.GetAccountUtxo>) => 
         // Collect CKB live cells as UTXOs
         const utxos: Utxo[] = [];
         for await (const cell of client.findCellsByLock(lockScript, undefined, true)) {
+            const txResponse = await fetchTx(String(cell.outPoint.txHash));
+            const blockHeight = txResponse?.blockNumber ? Number(txResponse.blockNumber) : 0;
+            const confirmations = blockHeight > 0 ? Math.max(0, tip - blockHeight + 1) : 0;
+
             utxos.push({
                 txid: String(cell.outPoint.txHash).replace(/^0x/, ''),
                 vout: Number(cell.outPoint.index),
                 amount: cell.cellOutput.capacity.toString(),
-                blockHeight: 0, // CKB cells don't carry block height directly
+                blockHeight,
                 address: descriptor,
                 path: '',
-                confirmations: 1,
+                confirmations,
             });
         }
 
@@ -497,6 +652,10 @@ const onRequest = (request: Request<MessageTypes.Message>) => {
             return getAccountUtxo(request);
         case MESSAGES.GET_TRANSACTION:
             return getTransaction(request);
+        case MESSAGES.GET_TRANSACTION_HEX:
+            return getTransactionHex(request);
+        case MESSAGES.GET_ACCOUNT_BALANCE_HISTORY:
+            return getAccountBalanceHistory(request);
         case MESSAGES.ESTIMATE_FEE:
             return estimateFee(request);
         case MESSAGES.PUSH_TRANSACTION:

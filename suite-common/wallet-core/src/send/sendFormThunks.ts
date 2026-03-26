@@ -206,6 +206,8 @@ export const composeSendFormTransactionFeeLevelsThunk = createThunk<
                     isNetworkReserveEnabled,
                 }),
             );
+        } else if (networkType === 'ckb') {
+            // TODO: CKB send not yet implemented in this commit.
         } else if (networkType === 'tron') {
             response = await dispatch(
                 composeTronTransactionFeeLevelsThunk({ formState, composeContext }),

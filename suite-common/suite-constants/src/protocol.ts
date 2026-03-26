@@ -48,6 +48,8 @@ export type Protocol =
     | 'txrp'
     | 'txlm'
     | 'dsol'
+    | 'ckb'
+    | 'tckb'
     | 'tron'
     | 'trx'
     | 'ttrx';
@@ -79,4 +81,6 @@ export const NETWORK_TO_PROTOCOLS: Record<NetworkSymbol, Protocol[]> = {
     dsol: ['dsol'],
     xlm: ['stellar', 'xlm'],
     txlm: ['txlm'],
+    ckb: ['ckb'],
+    tckb: ['tckb'],
 };

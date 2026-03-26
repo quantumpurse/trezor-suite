@@ -22,4 +22,7 @@ export const formattedAccountTypeMap: Partial<
     solana: {
         ledger: 'Ledger',
     },
+    ckb: {
+        normal: 'ECDSA',
+    },
 };

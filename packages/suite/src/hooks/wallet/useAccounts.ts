@@ -24,6 +24,7 @@ export const useAccountAddressDictionary = (account: Account | undefined) =>
             case 'ripple':
             case 'stellar':
             case 'tron':
+            case 'ckb':
             case 'ethereum': {
                 return {
                     [account.descriptor]: {

@@ -2718,8 +2718,15 @@ export const messages = defineMessages({
     },
 
     TR_ACCOUNT_TYPE_ECDSA_DESC: {
-        defaultMessage: 'Standard CKB account using ECDSA (secp256k1) signing.',
+        defaultMessage:
+            'CKB accounts use ECDSA secp256k1 signing with a standard BIP44 account path. These addresses are represented in Bech32m format.',
         id: 'TR_ACCOUNT_TYPE_ECDSA_DESC',
+        dynamic: true,
+    },
+
+    TR_ACCOUNT_TYPE_ECDSA_TECH: {
+        defaultMessage: 'BIP44, secp256k1, Bech32m',
+        id: 'TR_ACCOUNT_TYPE_ECDSA_TECH',
         dynamic: true,
     },
 

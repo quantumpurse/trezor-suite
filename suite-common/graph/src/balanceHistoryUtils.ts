@@ -324,6 +324,8 @@ export const getAccountHistoryMovementFromTransactions = ({
             return getAccountHistoryMovementItemBTC({ transactions, from, to });
         case 'xrp':
         case 'xlm':
+        case 'ckb':
+        case 'tckb':
             return getAccountHistoryMovementItemMisc({ transactions, from, to });
         case 'eth':
         case 'pol':
