@@ -13,6 +13,7 @@ import { MessagesSchema as PROTO } from '@trezor/protobuf';
 import { getBech32Network, getSegwitNetwork } from '../data/coinInfo';
 import { resolveDescriptorForTaproot } from '../device/resolveDescriptorForTaproot';
 import type { TypedCallProvider } from '../types/typed-call-provider';
+import { isCkbCoin } from '../utils/coinInfoUtils';
 import * as hdnodeUtils from '../utils/hdnodeUtils';
 import { getScriptType, getSerializedPath, isTaprootPath } from '../utils/pathUtils';
 
@@ -200,7 +201,7 @@ export const DeviceCommands = (deviceTypedCall: TypedCallProvider) => {
         derivationType: Messages.CardanoDerivationType = PROTO.CardanoDerivationType.ICARUS_TREZOR,
     ): Promise<AccountDescriptor> => {
         // CKB: get address from device via CKBGetAddress
-        if (coinInfo.shortcut === 'CKB' || coinInfo.shortcut === 'tCKB') {
+        if (isCkbCoin(coinInfo)) {
             const ckbPath = [...address_n, 0, 0]; // append change=0, address_index=0
             const { message } = await typedCall('CKBGetAddress', 'CKBAddress', {
                 address_n: ckbPath,

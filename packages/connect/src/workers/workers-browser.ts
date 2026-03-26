@@ -1,6 +1,7 @@
 import type { BaseWorker } from '@trezor/blockchain-link/src/workers/baseWorker';
 import BlockbookWorker from '@trezor/blockchain-link/src/workers/blockbook';
 import BlockfrostWorker from '@trezor/blockchain-link/src/workers/blockfrost';
+import CkbWorker from '@trezor/blockchain-link/src/workers/ckb';
 import RippleWorker from '@trezor/blockchain-link/src/workers/ripple';
 import StellarWorker from '@trezor/blockchain-link/src/workers/stellar';
 
@@ -26,4 +27,5 @@ export {
     SolanaWorker,
     StellarWorker,
     EvmRpcWorker,
+    CkbWorker,
 };

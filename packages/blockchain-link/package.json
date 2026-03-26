@@ -87,6 +87,7 @@
         "webpack": "5.105.4"
     },
     "dependencies": {
+        "@ckb-ccc/core": "^1.12.5",
         "@solana-program/compute-budget": "^0.8.0",
         "@solana-program/stake": "^0.2.1",
         "@solana-program/token": "^0.5.1",

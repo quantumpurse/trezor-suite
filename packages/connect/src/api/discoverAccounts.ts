@@ -23,6 +23,7 @@ import { AbstractMethod } from '../core/AbstractMethod';
 import { getCoinInfo } from '../data/coinInfo';
 import type { AccountDescriptor } from '../device/DeviceCommands';
 import { isUtxoBased } from '../utils/accountUtils';
+import { isCkbCoin } from '../utils/coinInfoUtils';
 import { validatePath } from '../utils/pathUtils';
 import { getFirmwareRange, validateParams } from './common/paramsValidator';
 import { checkXPubWithHashes } from './firmware/calculateXPubHash';
@@ -286,7 +287,10 @@ export default class DiscoverAccounts extends AbstractMethod<
         const path = substituteBip43Path(bip43PathTemplate, index);
 
         const { address_n: _, ...descriptorRest } = await this.descriptorLock(async () => {
-            const key = `${path}-${derivationType}`;
+            const key = isCkbCoin(coinInfo)
+                ? `${path}-${derivationType}-${coinInfo.shortcut}`
+                : `${path}-${derivationType}`;
+
             if (!this.descriptorCache[key]) {
                 // This works because descriptors returned from getAccountDescriptor depend only
                 // on derivation path (plus type in case of Cardano). When there's a case where
@@ -313,7 +317,7 @@ export default class DiscoverAccounts extends AbstractMethod<
                 }
             }
 
-            return this.descriptorCache[key];
+            return this.descriptorCache[key]!;
         });
 
         return { path, ...descriptorRest };
@@ -329,6 +333,26 @@ export default class DiscoverAccounts extends AbstractMethod<
         const backendType = coinInfo.blockchainLink?.type;
         const utxoRequired = isUtxoBased(coinInfo) && details && details !== 'basic';
         let index = skip;
+        const isCkb = isCkbCoin(coinInfo);
+        let previousDescriptor: string | undefined;
+
+        // CKB fallback descriptor may be static (same address for every derivation index).
+        // When resuming discovery (skip > 0), seed previousDescriptor with the
+        // descriptor from the previous account index so we can detect repetition
+        // and stop discovery early. Only needed for CKB.
+        if (isCkb && skip > 0) {
+            try {
+                const prev = await this.getDescriptor(
+                    coinInfo,
+                    bip43,
+                    derivation,
+                    offset + skip - 1,
+                );
+                previousDescriptor = prev.descriptor;
+            } catch {
+                // ignore — proceed with undefined previousDescriptor
+            }
+        }
 
         const sendProgress = (response: DiscoverAccountsProgress) =>
             this.sendProgress(response, sendCoreMessage);
@@ -352,6 +376,17 @@ export default class DiscoverAccounts extends AbstractMethod<
                 const { descriptor, ...descRest } = await descPromise;
                 descPromise = this.getDescriptor(coinInfo, bip43, derivation, offset + index + 1);
                 descPromise.catch(() => {});
+
+                // CKB fallback descriptor may be static (same descriptor for every index).
+                // Stop discovery when descriptor repeats to avoid endless/non-terminating scans.
+                if (isCkb && previousDescriptor === descriptor) {
+                    this.updateProgress(accountKey, index + 1, true);
+
+                    return { nonempty: index - skip };
+                }
+                if (isCkb) {
+                    previousDescriptor = descriptor;
+                }
 
                 const info = await blockchain.getAccountInfo({
                     descriptor,

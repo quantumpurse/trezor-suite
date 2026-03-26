@@ -12,6 +12,7 @@ import { TypedEmitter } from '@trezor/utils';
 import type { Blockchain } from '../../backend/BlockchainLink';
 import type { DeviceCommands } from '../../device/DeviceCommands';
 import { getAccountAddressN } from '../../utils/accountUtils';
+import { isCkbCoin } from '../../utils/coinInfoUtils';
 import { formatAmount } from '../../utils/formatUtils';
 
 type DiscoveryType = {
@@ -97,6 +98,11 @@ export class Discovery extends TypedEmitter<Events> {
             this.types.push({
                 type: 'p2pkh',
                 getPath: getDescriptor.bind(this, 44),
+            });
+        } else if (isCkbCoin(coinInfo)) {
+            this.types.push({
+                type: 'p2pkh',
+                getPath: getAccountAddressN.bind(this, coinInfo),
             });
         } else {
             // other coins has only legacy/p2pkh discovery type
