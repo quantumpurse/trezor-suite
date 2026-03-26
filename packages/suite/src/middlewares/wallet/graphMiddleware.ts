@@ -1,16 +1,19 @@
 import { type MiddlewareAPI } from 'redux';
 
-import { accountsActions, discoveryActions } from '@suite-common/wallet-core';
+import { isLocalBalanceHistoryCoin } from '@suite-common/graph';
+import { accountsActions, discoveryActions, transactionsActions } from '@suite-common/wallet-core';
 
 import * as graphActions from 'src/actions/wallet/graphActions';
 import { type Action, type AppState, type Dispatch } from 'src/types/suite';
 
-const graphMiddleware =
+export const graphMiddleware =
     (api: MiddlewareAPI<Dispatch, AppState>) =>
     (next: Dispatch) =>
     (action: Action): Action => {
         next(action);
-        const currentAccounts = api.getState().wallet.accounts;
+        const {
+            wallet: { accounts: currentAccounts, selectedAccount },
+        } = api.getState();
 
         if (accountsActions.updateSelectedAccount.match(action)) {
             // fetch graph data for selected account and range if needed
@@ -34,7 +37,19 @@ const graphMiddleware =
             );
         }
 
+        if (
+            (transactionsActions.addTransaction.match(action) ||
+                transactionsActions.removeTransaction.match(action)) &&
+            selectedAccount.status === 'loaded' &&
+            selectedAccount.account?.key === action.payload.account.key &&
+            isLocalBalanceHistoryCoin(action.payload.account.symbol)
+        ) {
+            api.dispatch(
+                graphActions.updateGraphData({
+                    accounts: [action.payload.account],
+                }),
+            );
+        }
+
         return action;
     };
-
-export default graphMiddleware;

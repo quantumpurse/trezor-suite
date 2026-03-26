@@ -14,7 +14,7 @@ import { prepareWalletConnectMiddleware } from '@suite-common/walletconnect';
 
 import { coinjoinMiddleware } from './coinjoinMiddleware';
 import { prepareDiscoveryMiddleware } from './discoveryMiddleware';
-import graphMiddleware from './graphMiddleware';
+import { graphMiddleware } from './graphMiddleware';
 import { replaceByFeeErrorMiddleware } from './replaceByFeeErrorMiddleware';
 import storageMiddleware from './storageMiddleware';
 import { tradingMiddleware } from './tradingMiddleware';

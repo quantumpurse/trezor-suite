@@ -55,7 +55,9 @@ import { isRbfBumpFeeTransaction } from './transactionUtils';
 const { SYSTEM_PROGRAM_PUBLIC_KEY } = solanaUtils;
 
 export const isUtxoBased = (account: Account) =>
-    account.networkType === 'bitcoin' || account.networkType === 'cardano';
+    account.networkType === 'bitcoin' ||
+    account.networkType === 'cardano' ||
+    account.networkType === 'ckb';
 
 export const isAccountSuccessful = (account: Account): account is SuccessfulAccount =>
     !account.failed;
@@ -80,6 +82,7 @@ export const getFirstFreshAddress = (
     pendingAddresses: string[],
     utxoBasedAccount: boolean,
 ) => {
+    const hasDerivedAddresses = !!account.addresses;
     const unused = account.addresses
         ? account.addresses.unused
         : [
@@ -98,7 +101,7 @@ export const getFirstFreshAddress = (
 
     // const addressLabel = utxoBasedAccount ? 'RECEIVE_ADDRESS_FRESH' : 'RECEIVE_ADDRESS';
     // NOTE: unrevealed[0] can be undefined (limit exceeded)
-    const firstFreshAddress = utxoBasedAccount ? unrevealed[0] : unused[0];
+    const firstFreshAddress = utxoBasedAccount && hasDerivedAddresses ? unrevealed[0] : unused[0];
 
     return firstFreshAddress;
 };
@@ -193,6 +196,10 @@ type getAccountTypeNameProps = {
 export const getAccountTypeName = ({ path, accountType, networkType }: getAccountTypeNameProps) => {
     if (!networkType) return null;
 
+    if (networkType === 'ckb') {
+        return 'TR_ACCOUNT_TYPE_ECDSA';
+    }
+
     if (networkType !== 'bitcoin') {
         switch (accountType) {
             case 'ledger':
@@ -215,6 +222,8 @@ export const getAccountTypeName = ({ path, accountType, networkType }: getAccoun
             return 'TR_ACCOUNT_TYPE_BIP84_NAME';
         case 'legacy':
             return 'TR_ACCOUNT_TYPE_LEGACY';
+        case 'ecdsa':
+            return 'TR_ACCOUNT_TYPE_ECDSA';
     }
 
     if (!path) return null;
@@ -230,7 +239,11 @@ export const getAccountTypeName = ({ path, accountType, networkType }: getAccoun
     return 'TR_ACCOUNT_TYPE_BIP44_NAME';
 };
 
-export const getAccountTypeTech = (path: Bip43PathTemplate) => {
+export const getAccountTypeTech = (path: Bip43PathTemplate, networkType?: NetworkType) => {
+    if (networkType === 'ckb') {
+        return 'TR_ACCOUNT_TYPE_ECDSA_TECH';
+    }
+
     const accountTypePrefix = getAccountTypePrefix(path);
     if (accountTypePrefix) return `${accountTypePrefix}_TECH` as const;
     const bip43 = getBip43Type(path);
@@ -259,6 +272,12 @@ export const getAccountTypeDesc = ({ path, accountType, networkType }: getAccoun
             }
 
             return 'TR_ACCOUNT_TYPE_LEGACY_DESC';
+        case 'ecdsa':
+            return 'TR_ACCOUNT_TYPE_ECDSA_DESC';
+    }
+
+    if (networkType === 'ckb') {
+        return 'TR_ACCOUNT_TYPE_ECDSA_DESC';
     }
 
     switch (networkType) {
@@ -290,7 +309,11 @@ export const getAccountTypeDesc = ({ path, accountType, networkType }: getAccoun
     return 'TR_ACCOUNT_TYPE_BIP44_DESC';
 };
 
-export const getAccountTypeUrl = (path: string) => {
+export const getAccountTypeUrl = (path: string, networkType?: NetworkType) => {
+    if (networkType === 'ckb') {
+        return undefined;
+    }
+
     const bip43 = getBip43Type(path);
     switch (bip43) {
         case 'bip86':
@@ -802,6 +825,16 @@ export const getAccountSpecific = (accountInfo: Partial<AccountInfo>, networkTyp
         };
     }
 
+    if (networkType === 'ckb') {
+        return {
+            networkType,
+            misc: undefined,
+            marker: undefined,
+            stellarCursor: undefined,
+            page: accountInfo.page,
+        };
+    }
+
     return {
         networkType,
         misc: undefined,
@@ -1093,6 +1126,7 @@ export const isSameUtxo = (a: AccountUtxo, b: AccountUtxo) =>
 export const isAddressBasedNetwork = (networkType: NetworkType) => {
     if (networkType === 'bitcoin') return false;
     if (networkType === 'cardano') return false;
+    if (networkType === 'ckb') return false;
     if (networkType === 'ethereum') return true;
     if (networkType === 'tron') return true;
     if (networkType === 'ripple') return true;

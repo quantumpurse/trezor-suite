@@ -25,7 +25,7 @@ export const AccountTypeDescription = ({
     symbol,
     networkType,
 }: AccountTypeDescriptionProps) => {
-    const accountTypeUrl = getAccountTypeUrl(bip43Path);
+    const accountTypeUrl = getAccountTypeUrl(bip43Path, networkType);
     const accountTypeDescId = getAccountTypeDesc({ path: bip43Path, accountType, networkType });
 
     return (

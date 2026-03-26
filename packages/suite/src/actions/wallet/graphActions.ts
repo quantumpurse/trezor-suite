@@ -1,10 +1,18 @@
+import {
+    getAccountHistoryMovementFromTransactions,
+    isLocalBalanceHistoryCoin,
+} from '@suite-common/graph';
 import { createThunk } from '@suite-common/redux-utils';
-import { selectBaseCurrency, selectIsElectrumBackendSelected } from '@suite-common/wallet-core';
+import {
+    selectAccountTransactions,
+    selectBaseCurrency,
+    selectIsElectrumBackendSelected,
+} from '@suite-common/wallet-core';
 import { type AccountKey, createAccountKey } from '@suite-common/wallet-types';
 import { isTrezorConnectBackendType, tryGetAccountIdentity } from '@suite-common/wallet-utils';
 import TrezorConnect from '@trezor/connect';
 
-import { type Dispatch, type GetState } from 'src/types/suite';
+import { type AppState, type Dispatch, type GetState } from 'src/types/suite';
 import { type Account } from 'src/types/wallet';
 import {
     type AccountHistoryWithBalance,
@@ -27,6 +35,40 @@ import {
     SET_SELECTED_RANGE,
     SET_SELECTED_VIEW,
 } from './constants/graphConstants';
+
+const getLocalBalanceMovementHistory = (
+    account: Account,
+    transactions: ReturnType<typeof selectAccountTransactions>,
+) =>
+    getAccountHistoryMovementFromTransactions({
+        transactions,
+        symbol: account.symbol,
+    }).main.map(item => ({
+        ...item,
+        received: item.received.toString(),
+        sent: item.sent.toString(),
+        sentToSelf: item.sentToSelf.toString(),
+        rates: {},
+    }));
+
+const getLocalEnhancedGraphData = (
+    account: Account,
+    transactions: ReturnType<typeof selectAccountTransactions>,
+) =>
+    enhanceBlockchainAccountHistory(
+        getLocalBalanceMovementHistory(account, transactions),
+        account.symbol,
+    );
+
+const getGraphDataSignature = (data: AccountHistoryWithBalance[]) =>
+    data
+        .map(
+            ({ time, txs, received, sent, balance }) =>
+                `${time}:${txs}:${received}:${sent}:${balance}`,
+        )
+        .join('|');
+
+const selectGraph = (state: AppState) => state.wallet.graph;
 
 export type GraphAction =
     | {
@@ -92,6 +134,43 @@ export const fetchAccountGraphData =
         });
 
         const baseCurrencyCode = selectBaseCurrency(getState());
+
+        // Keep account graph data aligned with the shared graph helpers for coins
+        // that intentionally derive balance history from stored local transactions.
+        if (isLocalBalanceHistoryCoin(account.symbol)) {
+            const transactions = selectAccountTransactions(getState(), account.key);
+            const balanceHistory = getLocalBalanceMovementHistory(account, transactions);
+
+            const isElectrumBackend = selectIsElectrumBackendSelected(getState(), account.symbol);
+            const responseWithRates = await ensureHistoryRates(
+                account.symbol,
+                balanceHistory,
+                baseCurrencyCode,
+                isElectrumBackend,
+            );
+
+            const enhancedResponse = enhanceBlockchainAccountHistory(
+                responseWithRates,
+                account.symbol,
+            );
+
+            dispatch({
+                type: ACCOUNT_GRAPH_SUCCESS,
+                payload: {
+                    account: {
+                        deviceState: account.deviceState,
+                        descriptor: account.descriptor,
+                        symbol: account.symbol,
+                    },
+                    data: enhancedResponse,
+                    isLoading: false,
+                    error: false,
+                },
+            });
+
+            return;
+        }
+
         const response = await TrezorConnect.blockchainGetAccountBalanceHistory({
             coin: account.symbol,
             identity: tryGetAccountIdentity(account),
@@ -162,7 +241,7 @@ export const updateGraphData = createThunk<
             getState: GetState;
         },
     ) => {
-        const { graph } = getState().wallet;
+        const graph = selectGraph(getState());
 
         const supportedAccounts = accounts.filter(
             a =>
@@ -190,6 +269,17 @@ export const updateGraphData = createThunk<
         );
 
         const accountsToFetch = supportedAccounts.filter(account => {
+            if (isLocalBalanceHistoryCoin(account.symbol)) {
+                const transactions = selectAccountTransactions(getState(), account.key);
+                const existingGraphData = graphDataPointsByAccount.get(account.key) ?? [];
+                const expectedGraphData = getLocalEnhancedGraphData(account, transactions);
+
+                return (
+                    getGraphDataSignature(existingGraphData) !==
+                    getGraphDataSignature(expectedGraphData)
+                );
+            }
+
             const txCount = graphTxCountByAccount.get(account.key) ?? 0;
 
             return txCount !== account.history.total;

@@ -94,7 +94,7 @@ const Details = () => {
     const locked = isLocked(true);
     const disabled = locked || isReceiveDisabled || !selectedAccount.account;
 
-    const accountTypeTech = getAccountTypeTech(account.path);
+    const accountTypeTech = getAccountTypeTech(account.path, account.networkType);
 
     const isCoinjoinAccount = account.backendType === 'coinjoin';
 

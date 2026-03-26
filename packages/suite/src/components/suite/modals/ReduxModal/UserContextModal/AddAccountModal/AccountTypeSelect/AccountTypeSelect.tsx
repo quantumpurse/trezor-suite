@@ -60,7 +60,7 @@ const AccountTypeSelectComponent = ({
             <LabelWrapper>
                 {accountTypeName && <Translation id={accountTypeName} />}
                 <TypeInfo>
-                    <Translation id={getAccountTypeTech(option.value.bip43Path)} />
+                    <Translation id={getAccountTypeTech(option.value.bip43Path, networkType)} />
                 </TypeInfo>
             </LabelWrapper>
         );
