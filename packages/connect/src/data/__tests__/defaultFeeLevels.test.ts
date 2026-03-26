@@ -1,4 +1,4 @@
-import { getEthereumFeeLevels } from '../defaultFeeLevels';
+import { getCkbFeeLevels, getEthereumFeeLevels } from '../defaultFeeLevels';
 
 describe('getEthereumFeeLevels', () => {
     const fixtures = {
@@ -102,10 +102,36 @@ describe('getEthereumFeeLevels', () => {
 
     Object.entries(fixtures).forEach(([chain, { expected, coinInfo }]) => {
         it(`should return correct fee levels for ${chain}`, () => {
-            // @ts-expect-error
             const result = getEthereumFeeLevels(coinInfo);
 
             expect(result).toEqual(expected);
+        });
+    });
+});
+
+describe('getCkbFeeLevels', () => {
+    it('should return correct fee levels for CKB', () => {
+        const result = getCkbFeeLevels({
+            blocktime_seconds: 10,
+            default_fee: 1000,
+            max_fee: 100000,
+            min_fee: 1,
+            minimum_cell_capacity: 6100000000,
+        });
+
+        expect(result).toEqual({
+            blockTime: 1,
+            defaultFees: [
+                {
+                    label: 'normal',
+                    feePerUnit: '1000',
+                    blocks: 1,
+                },
+            ],
+            minFee: 1,
+            maxFee: 100000,
+            minPriorityFee: -1,
+            dustLimit: 6100000000,
         });
     });
 });

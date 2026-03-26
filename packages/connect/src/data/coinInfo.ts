@@ -9,7 +9,13 @@ import coinsEth from '@trezor/connect-data/files/coins-eth.json';
 import coins from '@trezor/connect-data/files/coins.json';
 import { cloneObject } from '@trezor/utils';
 
-import { getBitcoinFeeLevels, getEthereumFeeLevels, getMiscFeeLevels } from './defaultFeeLevels';
+import {
+    getBitcoinFeeLevels,
+    getCkbFeeLevels,
+    getEthereumFeeLevels,
+    getMiscFeeLevels,
+} from './defaultFeeLevels';
+import { isCkbCoin } from '../utils/coinInfoUtils';
 import { fromHardened, toHardened } from '../utils/pathUtils';
 
 const bitcoinNetworks: BitcoinNetworkInfo[] = [];
@@ -120,6 +126,13 @@ export const getCoinInfo = (currency: string) =>
 
 export const getCoinName = (path: number[]) => {
     const slip44 = fromHardened(path[1]);
+    const ckbNetwork = miscNetworks.find(
+        network => isCkbCoin(network) && network.slip44 === slip44,
+    );
+    if (ckbNetwork) {
+        return ckbNetwork.name;
+    }
+
     const network = ethereumNetworks.find(n => n.slip44 === slip44);
 
     return network ? network.name : 'Unknown coin';
@@ -131,7 +144,6 @@ const parseBitcoinNetworksJson = (json: any) => {
     Object.keys(json).forEach(key => {
         const coin = json[key];
         const shortcut = coin.coin_shortcut;
-
         const isBitcoin = BITCOIN_SHORTCUTS.includes(shortcut);
 
         const network = {
@@ -234,7 +246,9 @@ const parseMiscNetworksJSON = (json: any) => {
             slip44: network.slip44,
             support: network.support,
             decimals: network.decimals,
-            ...getMiscFeeLevels(network),
+            ...(network.blockchain_link?.type === 'ckb'
+                ? getCkbFeeLevels(network)
+                : getMiscFeeLevels(network)),
         });
     });
 };

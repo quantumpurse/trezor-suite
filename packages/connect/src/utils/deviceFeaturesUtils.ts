@@ -4,6 +4,7 @@ import type { MessagesSchema as PROTO } from '@trezor/protobuf';
 import { isArrayMember, versionUtils } from '@trezor/utils';
 
 import { config } from '../data/config';
+import { isCkbCoin } from './coinInfoUtils';
 
 const DEFAULT_CAPABILITIES_T1: PROTO.Capability[] = [
     'Capability_Bitcoin',
@@ -81,6 +82,9 @@ export const getUnavailableCapabilities = (features: Features, coins: CoinInfo[]
         }
         if (info.type === 'ethereum') {
             return !capabilities.includes('Capability_Ethereum');
+        }
+        if (isCkbCoin(info)) {
+            return false;
         }
         // misc
         if ((info.shortcut === 'TRX' || info.shortcut === 'tTRX') && info.type === 'misc') {
