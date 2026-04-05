@@ -8200,20 +8200,6 @@
                 }
             }
         },
-        "CKBSignedTx": {
-            "fields": {
-                "signature": {
-                    "rule": "required",
-                    "type": "bytes",
-                    "id": 1
-                },
-                "tx_hash": {
-                    "rule": "required",
-                    "type": "bytes",
-                    "id": 2
-                }
-            }
-        },
         "MessageType": {
             "edition": "proto2",
             "options": {
@@ -8488,8 +8474,7 @@
                 "CKBTxRequest": 5503,
                 "CKBTxAckInput": 5504,
                 "CKBTxAckOutput": 5505,
-                "CKBTxAckCellDep": 5506,
-                "CKBSignedTx": 5507
+                "CKBTxAckCellDep": 5506
             }
         }
     }
