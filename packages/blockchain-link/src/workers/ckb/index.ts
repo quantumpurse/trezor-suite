@@ -322,7 +322,7 @@ const getLockScriptTransactions = async ({
         total++;
 
         if (total >= end && page !== undefined) {
-            continue;
+            break;
         }
     }
 
