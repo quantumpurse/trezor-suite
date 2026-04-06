@@ -29,15 +29,7 @@ const stripHex = (hex: string): string => (hex.startsWith('0x') ? hex.slice(2) :
 
 type CkbNetwork = 'Mainnet' | 'Testnet';
 
-type CKBSignTxInitialParams = {
-    address_n: number[];
-    network: CkbNetwork;
-    inputs_count: number;
-    outputs_count: number;
-    cell_deps_count: number;
-    fee: number;
-    chunkify: boolean;
-};
+type CKBSignTxInitialParams = PROTO.CKBSignTx & { network: CkbNetwork };
 
 // Streaming loop: process CKBTxRequest from the device
 const processCkbTxRequest = async (
@@ -72,7 +64,8 @@ const processCkbTxRequest = async (
         if (!input) {
             throw ERRORS.TypedError(
                 'Runtime',
-                `CKB signing: Requested input at index ${requestIndex} but only ${inputs.length} inputs available`,
+                `CKB signing: Requested input at index ${requestIndex}` +
+                    ` but only ${inputs.length} inputs available`,
             );
         }
         const { message } = await typedCall('CKBTxAckInput', 'CKBTxRequest', {
@@ -88,7 +81,8 @@ const processCkbTxRequest = async (
         if (!output) {
             throw ERRORS.TypedError(
                 'Runtime',
-                `CKB signing: Requested output at index ${requestIndex} but only ${outputs.length} outputs available`,
+                `CKB signing: Requested output at index ${requestIndex}` +
+                    ` but only ${outputs.length} outputs available`,
             );
         }
         const { message } = await typedCall('CKBTxAckOutput', 'CKBTxRequest', {
@@ -104,7 +98,8 @@ const processCkbTxRequest = async (
         if (!cellDep) {
             throw ERRORS.TypedError(
                 'Runtime',
-                `CKB signing: Requested cell_dep at index ${requestIndex} but only ${cellDeps.length} cell_deps available`,
+                `CKB signing: Requested cell_dep at index ${requestIndex}` +
+                    ` but only ${cellDeps.length} cell_deps available`,
             );
         }
         const { message } = await typedCall('CKBTxAckCellDep', 'CKBTxRequest', {
@@ -171,7 +166,7 @@ export default class CkbSignTransaction extends AbstractMethod<
         this.inputs = transaction.inputs.map(input => ({
             previous_output_tx_hash: stripHex(input.previousOutput.txHash),
             previous_output_index: Number(input.previousOutput.index),
-            since: Number(input.since || '0'),
+            since: String(input.since ?? '0'),
         }));
 
         // Prepare outputs for streaming
@@ -214,7 +209,7 @@ export default class CkbSignTransaction extends AbstractMethod<
             inputs_count: this.inputs.length,
             outputs_count: this.outputs.length,
             cell_deps_count: this.cellDeps.length,
-            fee: typeof fee === 'undefined' ? 0 : Number(fee),
+            fee: fee ?? 0,
             chunkify: typeof chunkify === 'boolean' ? chunkify : false,
         };
     }

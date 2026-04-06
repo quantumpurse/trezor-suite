@@ -1,4 +1,4 @@
-import { bech32m } from 'bech32';
+import { ccc } from '@ckb-ccc/core';
 
 import { createThunk } from '@suite-common/redux-utils';
 import {
@@ -9,13 +9,11 @@ import {
     type PrecomposedTransaction,
 } from '@suite-common/wallet-types';
 import {
-    calculateMax,
     formatNetworkAmount,
     getExternalComposeOutput,
     isTestnet,
 } from '@suite-common/wallet-utils';
 import TrezorConnect, { type FeeLevel } from '@trezor/connect';
-import { BigNumber } from '@trezor/utils';
 
 import { SEND_MODULE_PREFIX } from './sendFormConstants';
 import {
@@ -24,167 +22,20 @@ import {
     type SignTransactionError,
     type SignTransactionThunkArguments,
 } from './sendFormTypes';
+import { selectNetworkBlockchainInfo } from '../blockchain/blockchainReducer';
 import { selectAddressDisplayType } from '../settings/walletSettingsReducer';
 
-// CKB minimum cell capacity: 61 CKB = 6100000000 shannons
-// (8 bytes capacity + 32 bytes code_hash + 1 byte hash_type + 20 bytes args = 61 bytes)
-const MIN_CELL_CAPACITY = '6100000000';
+type CkbClient = ccc.ClientPublicMainnet | ccc.ClientPublicTestnet;
+type TrezorCkbDevice = SignTransactionThunkArguments['device'];
 
-// Estimated transaction size in bytes for fee calculation
-// A typical CKB transfer (1-2 inputs, 2 outputs) is around 700 bytes
-const ESTIMATED_TX_SIZE = 700;
-
-// secp256k1_blake160 system cell deps
-const MAINNET_SECP256K1_CELL_DEP = {
-    outPoint: {
-        txHash: '0x71a7ba8fc96349fea0ed3a5c47992e3b4084b031a42264a018e0072e8172e46c',
-        index: 0,
-    },
-    depType: 'dep_group' as const,
-};
-
-const TESTNET_SECP256K1_CELL_DEP = {
-    outPoint: {
-        txHash: '0xf8de3bb47d055cdf460d93a2a6e1b05f7432f9777c8c474abf4eec1d4aee5d37',
-        index: 0,
-    },
-    depType: 'dep_group' as const,
-};
-
-// secp256k1_blake160 lock script code_hash (for reference)
-// const SECP256K1_CODE_HASH = '0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8';
-
-/**
- * Decode a CKB Full Address (CKB2021, bech32m) to extract the lock script components.
- * Format: bech32m(hrp, [0x00 | code_hash(32) | hash_type(1) | args(variable)])
- */
-const decodeCkbAddress = (
-    address: string,
-    expectedPrefix?: 'ckb' | 'ckt',
-): { codeHash: string; hashType: string; args: string } => {
-    const { prefix, words } = bech32m.decode(address, 1024);
-    const data = bech32m.fromWords(words);
-
-    if (expectedPrefix && prefix !== expectedPrefix) {
-        throw new Error('Address network does not match the selected account network');
+class TrezorCkbSignError extends Error {
+    constructor(
+        message: string,
+        readonly errorCode?: SignTransactionError['errorCode'],
+    ) {
+        super(message);
     }
-
-    // Validate full address format (CKB2021)
-    if (data[0] !== 0x00) {
-        throw new Error('Only CKB full-format (0x00) addresses are supported');
-    }
-    const codeHash =
-        '0x' +
-        Array.from(data.slice(1, 33))
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('');
-    const hashTypeByte = data[33];
-    let hashType: string;
-    switch (hashTypeByte) {
-        case 0x00:
-            hashType = 'data';
-            break;
-        case 0x01:
-            hashType = 'type';
-            break;
-        case 0x02:
-            hashType = 'data1';
-            break;
-        default:
-            throw new Error('Unsupported CKB hash type');
-    }
-    const args =
-        '0x' +
-        Array.from(data.slice(34))
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('');
-
-    return { codeHash, hashType, args };
-};
-
-type CkbUtxos = NonNullable<Account['utxo']>;
-
-type CkbTransactionPlan = {
-    adjustedFee: string;
-    changeAmount: BigNumber;
-    hasChange: boolean;
-    selectedUtxos: CkbUtxos;
-    totalInput: BigNumber;
-    totalSpent: string;
-};
-
-const selectUtxosToCover = (utxos: CkbUtxos, totalNeeded: BigNumber) => {
-    const sortedUtxos = [...utxos].sort(
-        (first, second) =>
-            new BigNumber(second.amount).comparedTo(new BigNumber(first.amount)) ?? 0,
-    );
-
-    const selectedUtxos: CkbUtxos = [];
-    let totalInput = new BigNumber(0);
-
-    for (const utxo of sortedUtxos) {
-        selectedUtxos.push(utxo);
-        totalInput = totalInput.plus(utxo.amount);
-        if (totalInput.gte(totalNeeded)) {
-            break;
-        }
-    }
-
-    if (totalInput.isLessThan(totalNeeded)) {
-        return null;
-    }
-
-    return { selectedUtxos, totalInput };
-};
-
-const buildTransactionPlan = ({
-    amount,
-    fee,
-    utxos,
-}: {
-    amount: string;
-    fee: string;
-    utxos: Account['utxo'];
-}): CkbTransactionPlan | null => {
-    if (!utxos || utxos.length === 0) {
-        return null;
-    }
-
-    const amountBn = new BigNumber(amount);
-    let adjustedFee = new BigNumber(fee);
-    const selection = selectUtxosToCover(utxos, amountBn.plus(adjustedFee));
-
-    if (!selection) {
-        return null;
-    }
-
-    let changeAmount = selection.totalInput.minus(amountBn).minus(adjustedFee);
-    if (changeAmount.isGreaterThan(0) && changeAmount.isLessThan(MIN_CELL_CAPACITY)) {
-        adjustedFee = adjustedFee.plus(changeAmount);
-        changeAmount = new BigNumber(0);
-    }
-
-    return {
-        adjustedFee: adjustedFee.toString(),
-        changeAmount,
-        hasChange: changeAmount.gte(MIN_CELL_CAPACITY),
-        selectedUtxos: selection.selectedUtxos,
-        totalInput: selection.totalInput,
-        totalSpent: amountBn.plus(adjustedFee).toString(),
-    };
-};
-
-/**
- * Calculate CKB transaction fee from fee rate.
- * feeRatePerKB is in shannons/KB from the CKB node.
- */
-const calculateCkbFee = (feeRatePerKB: string, txSizeBytes: number): string => {
-    const rate = new BigNumber(feeRatePerKB);
-    const fee = rate.times(txSizeBytes).dividedBy(1000).integerValue(BigNumber.ROUND_CEIL);
-
-    // Minimum fee of 1000 shannons (0.00001 CKB)
-    return BigNumber.max(fee, 1000).toString();
-};
+}
 
 /**
  * Convert signature from Trezor format to CKB format.
@@ -195,7 +46,7 @@ const calculateCkbFee = (feeRatePerKB: string, txSizeBytes: number): string => {
  * CKB's secp256k1_blake160 lock script expects 65 bytes: [r(32) || s(32) || recovery_id(1)]
  * where recovery_id is 0 or 1, parsed via secp256k1_ecdsa_recoverable_signature_parse_compact.
  */
-const convertTrezorSigToCkb = (sigHex: string): string => {
+export const convertTrezorSigToCkb = (sigHex: string): string => {
     const sig = sigHex.startsWith('0x') ? sigHex.slice(2) : sigHex;
     // sig is 130 hex chars = 65 bytes: v(2 hex) + r(64 hex) + s(64 hex)
     const v = parseInt(sig.slice(0, 2), 16);
@@ -206,132 +57,363 @@ const convertTrezorSigToCkb = (sigHex: string): string => {
     return rs + recid.toString(16).padStart(2, '0');
 };
 
-/**
- * Build a serialized WitnessArgs in Molecule format with the given lock (signature).
- * WitnessArgs { lock: BytesOpt, input_type: BytesOpt, output_type: BytesOpt }
- *
- * For secp256k1_blake160, the lock is a 65-byte recoverable ECDSA signature.
- * The signature must already be in CKB format: [r(32) || s(32) || recid(1)].
- */
-const buildWitnessArgs = (signatureHex: string): string => {
-    // Remove 0x prefix if present
-    const sig = signatureHex.startsWith('0x') ? signatureHex.slice(2) : signatureHex;
-    const sigBytes = sig.length / 2; // Should be 65
+export const normalizeTrezorCkbSignature = (sigHex: string): string => {
+    const sig = sigHex.startsWith('0x') ? sigHex.slice(2) : sigHex;
 
-    // Molecule Table layout for WitnessArgs (3 fields):
-    // header: full_size(4) + offset_0(4) + offset_1(4) + offset_2(4) = 16 bytes
-    // lock: Bytes = length(4) + data(sigBytes)
-    // input_type: None (0 bytes)
-    // output_type: None (0 bytes)
-    const headerSize = 16;
-    const lockSize = 4 + sigBytes; // Bytes type: 4-byte length + data
-    const fullSize = headerSize + lockSize;
+    if (sig.length !== 130) {
+        throw new Error('Unexpected CKB signature length returned by Trezor.');
+    }
 
-    const offset0 = headerSize;
-    const offset1 = headerSize + lockSize;
-    const offset2 = offset1; // Both empty
+    const firstByte = parseInt(sig.slice(0, 2), 16);
 
-    const toLE32 = (n: number): string => {
-        const buf = new ArrayBuffer(4);
-        new DataView(buf).setUint32(0, n, true);
+    // Trezor vrs format: first byte is v = 27+recid (uncompressed) or 31+recid (compressed).
+    // Must be checked BEFORE the last-byte check because the last byte of s in
+    // a Trezor signature can coincidentally be 0-3, which would otherwise cause
+    // the signature to be returned unconverted.
+    if (firstByte >= 27 && firstByte <= 34) {
+        return convertTrezorSigToCkb(sig);
+    }
 
-        return Array.from(new Uint8Array(buf))
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('');
-    };
+    // Already in CKB format: r(32) || s(32) || recid(1) where recid is 0-3.
+    const lastByte = parseInt(sig.slice(-2), 16);
+    if (lastByte <= 3) {
+        return sig;
+    }
 
-    return (
-        '0x' +
-        toLE32(fullSize) +
-        toLE32(offset0) +
-        toLE32(offset1) +
-        toLE32(offset2) +
-        toLE32(sigBytes) +
-        sig
-    );
+    throw new Error('Unexpected CKB signature format returned by Trezor.');
 };
 
-/**
- * Calculate compose result for a CKB transaction at a given fee level.
- */
-const calculate = (
-    account: Account,
-    output: ExternalOutput,
-    feeLevel: FeeLevel,
-): PrecomposedTransaction => {
-    // Calculate fee based on estimated transaction size
-    const feeInShannons = calculateCkbFee(feeLevel.feePerUnit, ESTIMATED_TX_SIZE);
+const createCkbClient = (symbol: Account['symbol'], url?: string): CkbClient => {
+    const config = url ? { url } : undefined;
 
-    let amount: string;
-    let max: string | undefined;
+    return isTestnet(symbol)
+        ? new ccc.ClientPublicTestnet(config)
+        : new ccc.ClientPublicMainnet(config);
+};
 
-    if (output.type === 'send-max' || output.type === 'send-max-noaddress') {
-        const maxAmount = calculateMax(account.availableBalance, feeInShannons);
-        max = maxAmount;
-        amount = maxAmount;
-    } else {
-        amount = output.amount;
+export const ensureCkbInputWitnesses = (tx: ccc.Transaction) => {
+    while (tx.witnesses.length < tx.inputs.length) {
+        tx.witnesses.push('0x');
+    }
+};
+
+const mapCellDepToTrezor = (
+    cellDep: ccc.CellDep,
+): { outPoint: { txHash: string; index: number }; depType: 'code' | 'dep_group' } => ({
+    outPoint: {
+        txHash: cellDep.outPoint.txHash,
+        index: Number(cellDep.outPoint.index),
+    },
+    depType: cellDep.depType === 'depGroup' ? 'dep_group' : 'code',
+});
+
+const mapCccTransactionToTrezor = (
+    tx: ccc.Transaction,
+): {
+    version: 0;
+    cellDeps: Array<{
+        outPoint: { txHash: string; index: number };
+        depType: 'code' | 'dep_group';
+    }>;
+    headerDeps: string[];
+    inputs: Array<{ since: string; previousOutput: { txHash: string; index: number } }>;
+    outputs: Array<{
+        capacity: string;
+        lock: {
+            codeHash: string;
+            hashType: 'type' | 'data' | 'data1' | 'data2';
+            args: string;
+        };
+        type?: {
+            codeHash: string;
+            hashType: 'type' | 'data' | 'data1' | 'data2';
+            args: string;
+        };
+    }>;
+    outputsData: string[];
+} => ({
+    version: 0,
+    cellDeps: tx.cellDeps.map(mapCellDepToTrezor),
+    headerDeps: tx.headerDeps.map(String),
+    inputs: tx.inputs.map(input => ({
+        since: input.since.toString(),
+        previousOutput: {
+            txHash: input.previousOutput.txHash,
+            index: Number(input.previousOutput.index),
+        },
+    })),
+    outputs: tx.outputs.map(output => ({
+        capacity: output.capacity.toString(),
+        lock: {
+            codeHash: output.lock.codeHash,
+            hashType: output.lock.hashType,
+            args: output.lock.args,
+        },
+        ...(output.type
+            ? {
+                  type: {
+                      codeHash: output.type.codeHash,
+                      hashType: output.type.hashType,
+                      args: output.type.args,
+                  },
+              }
+            : {}),
+    })),
+    outputsData: tx.outputsData.map(String),
+});
+
+class TrezorCkbSigner extends ccc.Signer {
+    private readonly addressPromise: Promise<ccc.Address>;
+
+    constructor(
+        client: CkbClient,
+        private readonly account: Account,
+        private readonly device?: TrezorCkbDevice,
+        private readonly chunkify = false,
+    ) {
+        super(client);
+
+        this.addressPromise = ccc.Address.fromString(account.descriptor, client);
     }
 
-    // Check if amount is enough
-    if (new BigNumber(amount).isLessThanOrEqualTo(0)) {
-        return {
-            type: 'error',
-            error: 'AMOUNT_IS_NOT_ENOUGH',
-            errorMessage: { id: 'AMOUNT_IS_NOT_ENOUGH' },
-        } as const;
+    get type() {
+        return ccc.SignerType.CKB;
     }
 
-    // Check minimum amount (CKB requires minimum 61 CKB per output cell)
-    if (new BigNumber(amount).isLessThan(MIN_CELL_CAPACITY)) {
-        return {
-            type: 'error',
-            error: 'AMOUNT_IS_TOO_LOW',
-            errorMessage: { id: 'AMOUNT_IS_TOO_LOW' },
-        } as const;
+    get signType() {
+        return ccc.SignerSignType.CkbSecp256k1;
     }
 
-    const plan = buildTransactionPlan({
-        amount,
-        fee: feeInShannons,
-        utxos: account.utxo,
+    async connect() {}
+
+    isConnected() {
+        return Promise.resolve(true);
+    }
+
+    getInternalAddress() {
+        return Promise.resolve(this.account.descriptor);
+    }
+
+    async getAddressObjs() {
+        return [await this.addressPromise];
+    }
+
+    async prepareTransaction(txLike: ccc.TransactionLike) {
+        const tx = ccc.Transaction.from(txLike);
+        const { script } = await this.getRecommendedAddressObj();
+
+        ensureCkbInputWitnesses(tx);
+        await tx.prepareSighashAllWitness(script, 65, this.client);
+        await tx.addCellDepsOfKnownScripts(this.client, ccc.KnownScript.Secp256k1Blake160);
+
+        return tx;
+    }
+
+    async signOnlyTransaction(txLike: ccc.TransactionLike) {
+        if (!this.device) {
+            throw new Error('Trezor device is required to sign a CKB transaction.');
+        }
+
+        const tx = ccc.Transaction.from(txLike);
+        const { script } = await this.getRecommendedAddressObj();
+
+        ensureCkbInputWitnesses(tx);
+        const signHashInfo = await tx.getSignHashInfo(script, this.client);
+
+        if (!signHashInfo) {
+            return tx;
+        }
+
+        const response = await TrezorConnect.ckbSignTransaction({
+            device: {
+                path: this.device.path,
+                instance: this.device.instance,
+                state: this.device.state,
+                useEmptyPassphrase: this.device.useEmptyPassphrase,
+            },
+            path: this.account.path,
+            transaction: mapCccTransactionToTrezor(tx),
+            network: isTestnet(this.account.symbol) ? 'Testnet' : 'Mainnet',
+            fee: (await tx.getFee(this.client)).toString(),
+            chunkify: this.chunkify,
+        });
+
+        if (!response.success) {
+            throw new TrezorCkbSignError(response.error.message, response.error.code);
+        }
+
+        const witness = tx.getWitnessArgsAt(signHashInfo.position) ?? ccc.WitnessArgs.from({});
+        witness.lock = `0x${normalizeTrezorCkbSignature(response.payload.signature)}`;
+        tx.setWitnessArgsAt(signHashInfo.position, witness);
+
+        return tx;
+    }
+}
+
+const buildCkbTransaction = async ({
+    recipientAddress,
+    signer,
+    amount,
+    feeRate,
+    shouldSendMax,
+}: {
+    recipientAddress: string;
+    signer: TrezorCkbSigner;
+    amount?: string;
+    feeRate?: string;
+    shouldSendMax: boolean;
+}) => {
+    const recipient = await ccc.Address.fromString(recipientAddress, signer.client);
+    const tx = ccc.Transaction.from({
+        outputs: [
+            shouldSendMax
+                ? { lock: recipient.script }
+                : { lock: recipient.script, capacity: amount! },
+        ],
     });
 
-    if (!plan) {
-        return {
-            type: 'error',
-            error: 'AMOUNT_IS_NOT_ENOUGH',
-            errorMessage: { id: 'AMOUNT_IS_NOT_ENOUGH' },
-        } as const;
+    if (shouldSendMax) {
+        await tx.completeInputsAll(signer);
+        await tx.completeFeeChangeToOutput(signer, 0, feeRate);
+
+        return tx;
     }
 
-    const payloadData = {
-        type: 'nonfinal' as const,
-        totalSpent: plan.totalSpent,
-        max,
-        fee: plan.adjustedFee,
-        feePerByte: feeLevel.feePerUnit,
-        bytes: ESTIMATED_TX_SIZE,
-        inputs: [],
-    };
+    await tx.completeFeeBy(signer, feeRate);
 
-    if (output.type === 'send-max' || output.type === 'payment') {
-        return {
-            ...payloadData,
-            type: 'final',
+    return tx;
+};
+
+const createCkbAmountError = (
+    error: 'AMOUNT_IS_NOT_ENOUGH' | 'AMOUNT_IS_TOO_LOW',
+): PrecomposedTransaction => ({
+    type: 'error',
+    error,
+    errorMessage: { id: error },
+});
+
+const isCkbSendMaxOutput = (output: ExternalOutput) =>
+    output.type === 'send-max' || output.type === 'send-max-noaddress';
+
+const isCkbKnownAddressOutput = (
+    output: ExternalOutput,
+): output is Extract<ExternalOutput, { type: 'payment' | 'send-max' }> =>
+    output.type === 'payment' || output.type === 'send-max';
+
+const getCkbRecipientAddress = (account: Account, output: ExternalOutput) =>
+    ('address' in output ? output.address : undefined) ?? account.descriptor;
+
+const getCkbMinimumOutputCapacity = (lock: ccc.Script) =>
+    ccc.CellOutput.from({ lock }, '0x').capacity;
+
+const composeCkbTransaction = async ({
+    output,
+    feeLevel,
+    recipientAddress,
+    signer,
+}: {
+    output: ExternalOutput;
+    feeLevel: FeeLevel;
+    recipientAddress: string;
+    signer: TrezorCkbSigner;
+}): Promise<PrecomposedTransaction> => {
+    const recipient = await ccc.Address.fromString(recipientAddress, signer.client);
+    const minimumCapacity = getCkbMinimumOutputCapacity(recipient.script);
+    const shouldSendMax = isCkbSendMaxOutput(output);
+    const amount = shouldSendMax ? undefined : output.amount;
+
+    if (amount !== undefined && BigInt(amount) <= 0n) {
+        return createCkbAmountError('AMOUNT_IS_NOT_ENOUGH');
+    }
+
+    if (amount !== undefined && BigInt(amount) < minimumCapacity) {
+        return createCkbAmountError('AMOUNT_IS_TOO_LOW');
+    }
+
+    try {
+        const tx = await buildCkbTransaction({
+            recipientAddress,
+            signer,
+            amount,
+            feeRate: feeLevel.feePerUnit,
+            shouldSendMax,
+        });
+        const recipientOutput = tx.getOutput(0);
+
+        if (!recipientOutput) {
+            throw new Error('Failed to build the recipient CKB output.');
+        }
+
+        const composedAmount = recipientOutput.cellOutput.capacity;
+        if (composedAmount < minimumCapacity) {
+            return createCkbAmountError('AMOUNT_IS_TOO_LOW');
+        }
+
+        const fee = await tx.getFee(signer.client);
+        const payloadData = {
+            type: 'nonfinal' as const,
+            totalSpent: (composedAmount + fee).toString(),
+            max: shouldSendMax ? composedAmount.toString() : undefined,
+            fee: fee.toString(),
+            feePerByte: feeLevel.feePerUnit,
+            bytes: tx.toBytes().length + 4,
             inputs: [],
-            outputsPermutation: [0],
-            outputs: [
-                {
-                    address: output.address,
-                    amount,
-                    script_type: 'PAYTOADDRESS',
-                },
-            ],
         };
+
+        if (isCkbKnownAddressOutput(output)) {
+            return {
+                ...payloadData,
+                type: 'final',
+                inputs: [],
+                outputsPermutation: [0],
+                outputs: [
+                    {
+                        address: output.address,
+                        amount: composedAmount.toString(),
+                        script_type: 'PAYTOADDRESS',
+                    },
+                ],
+            };
+        }
+
+        return payloadData;
+    } catch (error) {
+        if (
+            error instanceof ccc.ErrorTransactionInsufficientCapacity ||
+            error instanceof ccc.ErrorTransactionInsufficientCoin
+        ) {
+            return createCkbAmountError('AMOUNT_IS_NOT_ENOUGH');
+        }
+
+        throw error;
+    }
+};
+
+const composeCkbTransactions = async ({
+    feeLevels,
+    output,
+    recipientAddress,
+    signer,
+}: {
+    feeLevels: FeeLevel[];
+    output: ExternalOutput;
+    recipientAddress: string;
+    signer: TrezorCkbSigner;
+}) => {
+    const transactions: PrecomposedTransaction[] = [];
+
+    for (const feeLevel of feeLevels) {
+        transactions.push(
+            await composeCkbTransaction({
+                output,
+                feeLevel,
+                recipientAddress,
+                signer,
+            }),
+        );
     }
 
-    return payloadData;
+    return transactions;
 };
 
 export const composeCkbTransactionFeeLevelsThunk = createThunk<
@@ -340,7 +422,7 @@ export const composeCkbTransactionFeeLevelsThunk = createThunk<
     { rejectValue: ComposeFeeLevelsError }
 >(
     `${SEND_MODULE_PREFIX}/composeCkbTransactionFeeLevelsThunk`,
-    ({ formState, composeContext }, { rejectWithValue }) => {
+    async ({ formState, composeContext }, { getState, rejectWithValue }) => {
         const { account, network, feeInfo } = composeContext;
         const composeOutputs = getExternalComposeOutput(formState, account, network);
         if (!composeOutputs) {
@@ -351,6 +433,7 @@ export const composeCkbTransactionFeeLevelsThunk = createThunk<
         }
 
         const { output } = composeOutputs;
+        const blockchain = selectNetworkBlockchainInfo(getState(), account.symbol);
         const predefinedLevels = feeInfo.levels.filter(l => l.label !== 'custom');
         // In case when selectedFee is set to 'custom', construct this FeeLevel from values
         if (formState.selectedFee === 'custom') {
@@ -361,45 +444,79 @@ export const composeCkbTransactionFeeLevelsThunk = createThunk<
             });
         }
 
-        // Wrap response into PrecomposedLevels object where key is a FeeLevel label
-        const resultLevels: PrecomposedLevels = {};
-        const response = predefinedLevels.map(level => calculate(account, output, level));
-        response.forEach((tx, index) => {
-            const feeLabel = predefinedLevels[index].label as FeeLevel['label'];
-            resultLevels[feeLabel] = tx;
-        });
-
-        const hasAtLeastOneValid = response.find(r => r.type !== 'error');
-        // There is no valid tx in predefinedLevels and there is no custom level
-        if (!hasAtLeastOneValid && !resultLevels.custom) {
-            const { minFee } = feeInfo;
-            const lastKnownFee = predefinedLevels[predefinedLevels.length - 1].feePerUnit;
-            let maxFee = new BigNumber(lastKnownFee).minus(1);
-            const customLevels: FeeLevel[] = [];
-            while (maxFee.gte(minFee)) {
-                customLevels.push({ feePerUnit: maxFee.toString(), label: 'custom', blocks: -1 });
-                maxFee = maxFee.minus(1);
-            }
-
-            const customLevelsResponse = customLevels.map(level =>
-                calculate(account, output, level),
-            );
-
-            const customValid = customLevelsResponse.findIndex(r => r.type !== 'error');
-            if (customValid >= 0) {
-                resultLevels.custom = customLevelsResponse[customValid];
-            }
+        if (predefinedLevels.length === 0) {
+            return rejectWithValue({
+                error: 'fee-levels-compose-failed',
+                message: 'No CKB fee levels are available.',
+            });
         }
 
-        // Format max (calculate sends it as shannons)
-        Object.keys(resultLevels).forEach(key => {
-            const tx = resultLevels[key];
-            if (tx.type !== 'error' && tx.max) {
-                tx.max = formatNetworkAmount(tx.max, account.symbol);
-            }
-        });
+        const signer = new TrezorCkbSigner(
+            createCkbClient(account.symbol, blockchain.url),
+            account,
+        );
+        // Use the account descriptor while the destination is still incomplete.
+        const recipientAddress = getCkbRecipientAddress(account, output);
 
-        return resultLevels;
+        try {
+            // Wrap response into PrecomposedLevels object where key is a FeeLevel label
+            const resultLevels: PrecomposedLevels = {};
+            const response = await composeCkbTransactions({
+                feeLevels: predefinedLevels,
+                output,
+                recipientAddress,
+                signer,
+            });
+            response.forEach((tx, index) => {
+                const feeLabel = predefinedLevels[index].label as FeeLevel['label'];
+                resultLevels[feeLabel] = tx;
+            });
+
+            const hasAtLeastOneValid = response.find(r => r.type !== 'error');
+            // There is no valid tx in predefinedLevels and there is no custom level
+            if (!hasAtLeastOneValid && !resultLevels.custom) {
+                const lastKnownFee = predefinedLevels[predefinedLevels.length - 1].feePerUnit;
+                const minFee = BigInt(feeInfo.minFee);
+                let maxFee = BigInt(lastKnownFee) - 1n;
+                const customLevels: FeeLevel[] = [];
+                while (maxFee >= minFee) {
+                    customLevels.push({
+                        feePerUnit: maxFee.toString(),
+                        label: 'custom',
+                        blocks: -1,
+                    });
+                    maxFee -= 1n;
+                }
+
+                const customLevelsResponse = await composeCkbTransactions({
+                    feeLevels: customLevels,
+                    output,
+                    recipientAddress,
+                    signer,
+                });
+
+                const customValid = customLevelsResponse.findIndex(r => r.type !== 'error');
+                if (customValid >= 0) {
+                    resultLevels.custom = customLevelsResponse[customValid];
+                }
+            }
+
+            // Format max (compose sends it as shannons)
+            Object.keys(resultLevels).forEach(key => {
+                const tx = resultLevels[key];
+                if (tx.type !== 'error' && tx.max) {
+                    tx.max = formatNetworkAmount(tx.max, account.symbol);
+                }
+            });
+
+            return resultLevels;
+        } catch (error) {
+            return rejectWithValue({
+                error: 'fee-levels-compose-failed',
+                message:
+                    error instanceof Error ? error.message : 'Failed to compose CKB transaction.',
+            });
+        }
     },
 );
 
@@ -414,176 +531,55 @@ export const signCkbSendFormTransactionThunk = createThunk<
         { getState, rejectWithValue },
     ) => {
         const addressDisplayType = selectAddressDisplayType(getState());
-        const testnet = isTestnet(selectedAccount.symbol);
+        const blockchain = selectNetworkBlockchainInfo(getState(), selectedAccount.symbol);
 
-        // 1. Get recipient address and amount
-        const recipientAddress = formState.outputs[0].address;
-        const amountRaw = precomposedTransaction.outputs[0].amount;
-        const amount = String(amountRaw);
-        const { fee } = precomposedTransaction;
+        const [firstOutput] = formState.outputs;
+        const [recipientOutput] = precomposedTransaction.outputs;
+        const recipientAddress =
+            'address' in recipientOutput ? recipientOutput.address : firstOutput.address;
+        const shouldSendMax = formState.setMaxOutputId === 0;
+        const amount = shouldSendMax ? undefined : String(recipientOutput.amount);
+        const feeRate = precomposedTransaction.feePerByte;
 
-        if (!recipientAddress || !amount) {
+        if (!recipientAddress || (!shouldSendMax && !amount)) {
             return rejectWithValue({
                 error: 'sign-transaction-failed',
                 message: 'Missing recipient address or amount.',
             });
         }
 
-        // 2. Get UTXOs (live cells) from the account
-        const utxos = selectedAccount.utxo;
-        if (!utxos || utxos.length === 0) {
+        try {
+            const signer = new TrezorCkbSigner(
+                createCkbClient(selectedAccount.symbol, blockchain.url),
+                selectedAccount,
+                device,
+                addressDisplayType === AddressDisplayOptions.CHUNKED,
+            );
+
+            const tx = await buildCkbTransaction({
+                recipientAddress,
+                signer,
+                amount,
+                feeRate,
+                shouldSendMax,
+            });
+            const signedTx = await signer.signTransaction(tx);
+
+            return { serializedTx: ccc.stringify(signedTx) };
+        } catch (error) {
+            if (error instanceof TrezorCkbSignError) {
+                return rejectWithValue({
+                    error: 'sign-transaction-failed',
+                    errorCode: error.errorCode,
+                    message: error.message,
+                });
+            }
+
             return rejectWithValue({
                 error: 'sign-transaction-failed',
-                message: 'No UTXOs available for this account.',
+                message:
+                    error instanceof Error ? error.message : 'Failed to build CKB transaction.',
             });
         }
-
-        const plan = buildTransactionPlan({
-            amount,
-            fee,
-            utxos,
-        });
-
-        if (!plan) {
-            return rejectWithValue({
-                error: 'sign-transaction-failed',
-                message: 'Insufficient UTXOs to cover amount and fee.',
-            });
-        }
-
-        // 5. Decode recipient lock script
-        const expectedPrefix = testnet ? 'ckt' : 'ckb';
-        const recipientLock = decodeCkbAddress(recipientAddress, expectedPrefix);
-
-        // 6. Decode sender lock script (from account descriptor)
-        const senderLock = decodeCkbAddress(selectedAccount.descriptor, expectedPrefix);
-
-        // 7. Build CKB transaction for Trezor signing
-        const cellDep = testnet ? TESTNET_SECP256K1_CELL_DEP : MAINNET_SECP256K1_CELL_DEP;
-
-        const inputs = plan.selectedUtxos.map(utxo => ({
-            since: '0',
-            previousOutput: {
-                txHash: utxo.txid.startsWith('0x') ? utxo.txid : `0x${utxo.txid}`,
-                index: utxo.vout,
-            },
-        }));
-
-        const outputs: Array<{
-            capacity: string;
-            lock: {
-                codeHash: string;
-                hashType: 'type' | 'data' | 'data1' | 'data2';
-                args: string;
-            };
-        }> = [
-            {
-                capacity: amount,
-                lock: {
-                    codeHash: recipientLock.codeHash,
-                    hashType: recipientLock.hashType as 'type' | 'data' | 'data1' | 'data2',
-                    args: recipientLock.args,
-                },
-            },
-        ];
-
-        // Add change output if needed
-        if (plan.hasChange) {
-            outputs.push({
-                capacity: plan.changeAmount.toString(),
-                lock: {
-                    codeHash: senderLock.codeHash,
-                    hashType: senderLock.hashType as 'type' | 'data' | 'data1' | 'data2',
-                    args: senderLock.args,
-                },
-            });
-        }
-
-        const outputsData = outputs.map(() => '0x');
-
-        const transaction = {
-            version: 0 as const,
-            cellDeps: [cellDep],
-            headerDeps: [] as string[],
-            inputs,
-            outputs,
-            outputsData,
-        };
-
-        // 8. Sign with Trezor
-        const response = await TrezorConnect.ckbSignTransaction({
-            device: {
-                path: device.path,
-                instance: device.instance,
-                state: device.state,
-                useEmptyPassphrase: device.useEmptyPassphrase,
-            },
-            path: selectedAccount.path,
-            transaction,
-            network: testnet ? 'Testnet' : 'Mainnet',
-            fee: Number(plan.adjustedFee),
-            chunkify: addressDisplayType === AddressDisplayOptions.CHUNKED,
-        });
-
-        if (!response.success) {
-            return rejectWithValue({
-                error: 'sign-transaction-failed',
-                errorCode: response.error.code,
-                message: response.error.message,
-            });
-        }
-
-        // 9. Build witnesses
-        const { signature } = response.payload;
-        const witnesses: string[] = [];
-
-        // Convert signature from Trezor format [v||r||s] to CKB format [r||s||recid]
-        const ckbSignature = convertTrezorSigToCkb(signature);
-
-        // First input gets the WitnessArgs with signature
-        witnesses.push(buildWitnessArgs(ckbSignature));
-
-        // Additional inputs from the same lock group get empty witnesses
-        for (let i = 1; i < plan.selectedUtxos.length; i++) {
-            witnesses.push('0x');
-        }
-
-        // 10. Build the full signed transaction for broadcasting
-        // Use the format expected by the ccc library's sendTransactionNoCache (TransactionLike)
-        // NumLike fields accept string | number | bigint; using strings for JSON serialization safety
-        const fullTransaction = {
-            version: 0,
-            cellDeps: [
-                {
-                    outPoint: {
-                        txHash: cellDep.outPoint.txHash,
-                        index: cellDep.outPoint.index,
-                    },
-                    depType: 'depGroup',
-                },
-            ],
-            headerDeps: [] as string[],
-            inputs: inputs.map(input => ({
-                since: 0,
-                previousOutput: {
-                    txHash: input.previousOutput.txHash,
-                    index: input.previousOutput.index,
-                },
-            })),
-            outputs: outputs.map(output => ({
-                capacity: output.capacity,
-                lock: {
-                    codeHash: output.lock.codeHash,
-                    hashType: output.lock.hashType,
-                    args: output.lock.args,
-                },
-            })),
-            outputsData,
-            witnesses,
-        };
-
-        const serializedTx = JSON.stringify(fullTransaction);
-
-        return { serializedTx };
     },
 );
