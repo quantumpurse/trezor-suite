@@ -12,6 +12,7 @@
         "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "dependencies": {
+        "@ckb-ccc/core": "^1.12.5",
         "@mobily/ts-belt": "^3.13.1",
         "@reduxjs/toolkit": "2.11.2",
         "@suite-common/analytics": "workspace:*",
@@ -45,7 +46,6 @@
         "@trezor/protobuf": "workspace:*",
         "@trezor/type-utils": "workspace:*",
         "@trezor/utils": "workspace:*",
-        "bech32": "^2.0.0",
         "date-fns": "^4.1.0",
         "lodash": "^4.18.1",
         "react": "19.2.4",

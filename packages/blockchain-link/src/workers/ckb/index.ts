@@ -227,7 +227,8 @@ const mapTransaction = async ({
         });
     }
 
-    const fee = totalInputSum > totalOutputSum ? (totalInputSum - totalOutputSum).toString() : '0';
+    const feeBig = totalInputSum > totalOutputSum ? totalInputSum - totalOutputSum : BigInt(0);
+    const fee = feeBig.toString();
 
     let type: Transaction['type'] = 'unknown';
     let amount = '0';
@@ -242,7 +243,7 @@ const mapTransaction = async ({
             amount = fee;
         } else if (myInputSum > myOutputSum) {
             type = 'sent';
-            amount = (myInputSum - myOutputSum).toString();
+            amount = (myInputSum - myOutputSum - feeBig).toString();
         } else if (myOutputSum > BigInt(0)) {
             type = 'recv';
             amount = (myOutputSum - myInputSum).toString();
