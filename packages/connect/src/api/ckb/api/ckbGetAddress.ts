@@ -1,19 +1,19 @@
+import { Bundle, UI_REQUEST, createUiMessage } from '@trezor/connect-common';
+import type { PROTO } from '@trezor/connect-common';
 import { ERRORS } from '@trezor/connect-common/src/constants';
+import { CkbGetAddress as CkbGetAddressSchema } from '@trezor/connect-common/src/types/api/ckbGetAddress';
 import { Assert } from '@trezor/schema-utils';
 
-import type { PROTO } from '../../../constants';
 import type {
+    MethodContext,
     MethodMessage,
     MethodPermission,
     MethodReturnType,
 } from '../../../core/AbstractMethod';
 import { AbstractMethod } from '../../../core/AbstractMethod';
 import { getCoinInfo } from '../../../data/coinInfo';
-import { UI_REQUEST, createUiMessage } from '../../../events';
-import { Bundle } from '../../../types';
-import { CkbGetAddress as CkbGetAddressSchema } from '../../../types/api/ckbGetAddress';
 import { getSerializedPath, validatePath } from '../../../utils/pathUtils';
-import { getFirmwareRange } from '../../common/paramsValidator';
+import { bundlify } from '../../common/paramsValidator';
 
 type CkbCoin = 'ckb' | 'tckb';
 type CkbNetwork = 'Mainnet' | 'Testnet';
@@ -30,9 +30,9 @@ const getNetworkFromCoin = (coin?: CkbCoin): CkbNetwork | undefined => {
 
 const getCoinSymbolFromNetwork = (network: CkbNetwork) => (network === 'Testnet' ? 'tckb' : 'ckb');
 
-type Params = Omit<PROTO.CKBGetAddress, 'network'> & {
+type Params = {
+    proto: PROTO.CKBGetAddress & { network: CkbNetwork };
     address?: string;
-    network: CkbNetwork;
 };
 
 export default class CkbGetAddress extends AbstractMethod<'ckbGetAddress', Params[]> {
@@ -40,25 +40,12 @@ export default class CkbGetAddress extends AbstractMethod<'ckbGetAddress', Param
     progress = 0;
 
     constructor(message: MethodMessage<'ckbGetAddress'>) {
-        super(message);
-        this.confirmMissingBackup = true;
-    }
-
-    get requiredPermissions(): MethodPermission[] {
-        return ['read'];
-    }
-
-    init() {
-        // create a bundle with only one batch if bundle doesn't exists
-        this.hasBundle = !!this.payload.bundle;
-        const payload = !this.payload.bundle
-            ? { ...this.payload, bundle: [this.payload] }
-            : this.payload;
+        const { hasBundle, payload } = bundlify(message.payload);
 
         // validate bundle type
         Assert(Bundle(CkbGetAddressSchema), payload);
 
-        this.params = payload.bundle.map(batch => {
+        const params = payload.bundle.map(batch => {
             const path = validatePath(batch.path, 3);
             const networkFromCoin = getNetworkFromCoin(batch.coin as CkbCoin | undefined);
 
@@ -77,22 +64,31 @@ export default class CkbGetAddress extends AbstractMethod<'ckbGetAddress', Param
                 );
             }
 
-            this.firmwareRange = getFirmwareRange(
-                this.name,
-                getCoinInfo(getCoinSymbolFromNetwork(network)),
-                this.firmwareRange,
-            );
+            // Extend 3-segment account path to 5-segment address path (append /0/0)
+            const fullPath = path.length === 3 ? [...path, 0, 0] : path;
 
-            return {
-                address_n: path,
-                address: batch.address,
+            const proto = {
+                address_n: fullPath,
                 show_display: typeof batch.showOnTrezor === 'boolean' ? batch.showOnTrezor : true,
                 chunkify: typeof batch.chunkify === 'boolean' ? batch.chunkify : false,
                 network,
             };
+
+            return { proto, address: batch.address };
         });
 
-        this.useUi = this.getUseUi(this.params);
+        super(message, params);
+
+        this.hasBundle = hasBundle;
+        this.useUi = this.getUseUi(this.params, payload.useEventListener);
+        this.confirmMissingBackup = true;
+        this.requiredFirmwareCoins = [
+            getCoinInfo(getCoinSymbolFromNetwork(this.params[0].proto.network)),
+        ];
+    }
+
+    get requiredPermissions(): MethodPermission[] {
+        return ['read'];
     }
 
     get info() {
@@ -107,7 +103,7 @@ export default class CkbGetAddress extends AbstractMethod<'ckbGetAddress', Param
         if (code === 'ButtonRequest_Address') {
             return {
                 type: 'address' as const,
-                serializedPath: getSerializedPath(this.params[this.progress].address_n),
+                serializedPath: getSerializedPath(this.params[this.progress].proto.address_n),
                 address: this.params[this.progress].address || 'not-set',
             };
         }
@@ -120,33 +116,24 @@ export default class CkbGetAddress extends AbstractMethod<'ckbGetAddress', Param
         };
     }
 
-    async _call({ address_n, show_display, chunkify, network }: Params) {
+    async _call({ proto }: Params) {
         const cmd = this.getDevice().getCommands();
-
-        // Extend 3-segment account path to 5-segment address path (append /0/0)
-        const fullPath = address_n.length === 3 ? [...address_n, 0, 0] : address_n;
-
-        const response = await cmd.typedCall('CKBGetAddress', 'CKBAddress', {
-            address_n: fullPath,
-            show_display,
-            chunkify,
-            network,
-        });
+        const response = await cmd.typedCall('CKBGetAddress', 'CKBAddress', proto);
 
         return response.message;
     }
 
-    async run() {
+    async run({ sendCoreMessage }: MethodContext) {
         const responses: MethodReturnType<typeof this.name> = [];
         for (let i = 0; i < this.params.length; i++) {
             const batch = this.params[i];
 
             // silently get address and compare with requested address
             // or display as default inside popup
-            if (batch.show_display) {
+            if (batch.proto.show_display) {
                 const silent = await this._call({
                     ...batch,
-                    show_display: false,
+                    proto: { ...batch.proto, show_display: false },
                 });
                 if (typeof batch.address === 'string') {
                     if (batch.address !== silent.address) {
@@ -160,14 +147,14 @@ export default class CkbGetAddress extends AbstractMethod<'ckbGetAddress', Param
 
             const message = await this._call(batch);
             responses.push({
-                path: batch.address_n,
-                serializedPath: getSerializedPath(batch.address_n),
+                path: batch.proto.address_n,
+                serializedPath: getSerializedPath(batch.proto.address_n),
                 address: message.address,
             });
 
             if (this.hasBundle) {
                 // send progress
-                this.postMessage(
+                sendCoreMessage(
                     createUiMessage(UI_REQUEST.BUNDLE_PROGRESS, {
                         total: this.params.length,
                         progress: i,

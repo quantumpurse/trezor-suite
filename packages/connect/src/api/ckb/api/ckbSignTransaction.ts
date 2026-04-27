@@ -1,14 +1,13 @@
+import type { PROTO } from '@trezor/connect-common';
 import { ERRORS } from '@trezor/connect-common/src/constants';
-import type { MessagesSchema as PROTO } from '@trezor/protobuf';
+import { CKBSignTransaction as CKBSignTransactionSchema } from '@trezor/connect-common/src/types/api/ckb';
 import { Assert } from '@trezor/schema-utils';
 
-import type { MethodPermission } from '../../../core/AbstractMethod';
+import type { MethodMessage, MethodPermission } from '../../../core/AbstractMethod';
 import { AbstractMethod } from '../../../core/AbstractMethod';
 import { getCoinInfo } from '../../../data/coinInfo';
 import type { TypedCall } from '../../../device/DeviceCommands';
-import { CKBSignTransaction as CKBSignTransactionSchema } from '../../../types/api/ckb';
 import { validatePath } from '../../../utils/pathUtils';
-import { getFirmwareRange } from '../../common/paramsValidator';
 
 const HASH_TYPE_MAP: Record<string, number> = {
     data: 0,
@@ -120,23 +119,14 @@ export default class CkbSignTransaction extends AbstractMethod<
     outputs: PROTO.CKBCellOutput[] = [];
     cellDeps: PROTO.CKBCellDep[] = [];
 
-    get requiredPermissions(): MethodPermission[] {
-        return ['read', 'write'];
-    }
+    constructor(message: MethodMessage<'ckbSignTransaction'>) {
+        const { payload } = message;
 
-    init() {
-        const { payload } = this;
         // validate incoming parameters
         Assert(CKBSignTransactionSchema, payload);
 
         const path = validatePath(payload.path, 3);
         const { transaction, network, fee, chunkify } = payload;
-
-        this.firmwareRange = getFirmwareRange(
-            this.name,
-            getCoinInfo(network === 'Testnet' ? 'tckb' : 'ckb'),
-            this.firmwareRange,
-        );
 
         // Extend 3-segment account path to 5-segment address path (append /0/0)
         const fullPath = path.length === 3 ? [...path, 0, 0] : path;
@@ -163,14 +153,14 @@ export default class CkbSignTransaction extends AbstractMethod<
         }
 
         // Prepare inputs for streaming
-        this.inputs = transaction.inputs.map(input => ({
+        const inputs = transaction.inputs.map(input => ({
             previous_output_tx_hash: stripHex(input.previousOutput.txHash),
             previous_output_index: Number(input.previousOutput.index),
             since: String(input.since ?? '0'),
         }));
 
         // Prepare outputs for streaming
-        this.outputs = transaction.outputs.map((output, i) => {
+        const outputs = transaction.outputs.map((output, i) => {
             const outputData = transaction.outputsData[i];
 
             if (typeof outputData !== 'string') {
@@ -196,22 +186,33 @@ export default class CkbSignTransaction extends AbstractMethod<
         });
 
         // Prepare cell deps for streaming
-        this.cellDeps = transaction.cellDeps.map(dep => ({
+        const cellDeps = transaction.cellDeps.map(dep => ({
             tx_hash: stripHex(dep.outPoint.txHash),
             index: Number(dep.outPoint.index),
             dep_type: DEP_TYPE_MAP[dep.depType] ?? 0,
         }));
 
         // Initial message sends only counts
-        this.params = {
+        const params: CKBSignTxInitialParams = {
             address_n: fullPath,
             network,
-            inputs_count: this.inputs.length,
-            outputs_count: this.outputs.length,
-            cell_deps_count: this.cellDeps.length,
+            inputs_count: inputs.length,
+            outputs_count: outputs.length,
+            cell_deps_count: cellDeps.length,
             fee: fee ?? 0,
             chunkify: typeof chunkify === 'boolean' ? chunkify : false,
         };
+
+        super(message, params);
+
+        this.inputs = inputs;
+        this.outputs = outputs;
+        this.cellDeps = cellDeps;
+        this.requiredFirmwareCoins = [getCoinInfo(network === 'Testnet' ? 'tckb' : 'ckb')];
+    }
+
+    get requiredPermissions(): MethodPermission[] {
+        return ['read', 'write'];
     }
 
     get info() {
