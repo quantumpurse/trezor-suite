@@ -3,6 +3,7 @@ import * as bitcoinProto from '@trezor/protobuf/src/definitions/messages-bitcoin
 import * as bleProto from '@trezor/protobuf/src/definitions/messages-ble_pb';
 import * as bootloaderProto from '@trezor/protobuf/src/definitions/messages-bootloader_pb';
 import * as cardanoProto from '@trezor/protobuf/src/definitions/messages-cardano_pb';
+import * as ckbProto from '@trezor/protobuf/src/definitions/messages-ckb_pb';
 import * as commonProto from '@trezor/protobuf/src/definitions/messages-common_pb';
 import * as cryptoProto from '@trezor/protobuf/src/definitions/messages-crypto_pb';
 import * as debugProto from '@trezor/protobuf/src/definitions/messages-debug_pb';
@@ -29,6 +30,7 @@ export const loadProtobufModules = () => {
         bleProto,
         bootloaderProto,
         cardanoProto,
+        ckbProto,
         commonProto,
         cryptoProto,
         debugProto,

@@ -63,6 +63,15 @@ import {
     CardanoTxWitnessResponse,
 } from './messages-cardano';
 import {
+    CKBAddress,
+    CKBGetAddress,
+    CKBSignTx,
+    CKBTxAckCellDep,
+    CKBTxAckInput,
+    CKBTxAckOutput,
+    CKBTxRequest,
+} from './messages-ckb';
+import {
     ButtonAck,
     ButtonRequest,
     Deprecated_PassphraseStateAck,
@@ -306,6 +315,7 @@ export * from './messages-bitcoin';
 export * from './messages-ble';
 export * from './messages-bootloader';
 export * from './messages-cardano';
+export * from './messages-ckb';
 export * from './messages-crypto';
 export * from './messages-management';
 export * from './messages-debug';
@@ -397,6 +407,13 @@ export const MessageType = Type.Object(
         CardanoMessageDataRequest,
         CardanoMessageDataResponse,
         CardanoMessageSignature,
+        CKBGetAddress,
+        CKBAddress,
+        CKBSignTx,
+        CKBTxRequest,
+        CKBTxAckInput,
+        CKBTxAckOutput,
+        CKBTxAckCellDep,
         CipherKeyValue,
         CipheredKeyValue,
         SignIdentity,
@@ -650,6 +667,11 @@ export type WireInMessage =
     | 'CardanoTxHostAck'
     | 'CardanoSignMessageInit'
     | 'CardanoMessageDataResponse'
+    | 'CKBGetAddress'
+    | 'CKBSignTx'
+    | 'CKBTxAckInput'
+    | 'CKBTxAckOutput'
+    | 'CKBTxAckCellDep'
     | 'CipherKeyValue'
     | 'SignIdentity'
     | 'GetECDHSessionKey'
@@ -781,6 +803,8 @@ export type WireOutMessage =
     | 'CardanoSignTxFinished'
     | 'CardanoMessageDataRequest'
     | 'CardanoMessageSignature'
+    | 'CKBAddress'
+    | 'CKBTxRequest'
     | 'CipheredKeyValue'
     | 'SignedIdentity'
     | 'ECDHSessionKey'
