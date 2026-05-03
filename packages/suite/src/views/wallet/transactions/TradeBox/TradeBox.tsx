@@ -6,7 +6,7 @@ import { useServices } from '@suite-common/dependency-injection';
 import { getTradingPrefilledFromAccountData, tradingActions } from '@suite-common/trading';
 import { getNetworkDisplaySymbol, getNetworkDisplaySymbolName } from '@suite-common/wallet-config';
 import { useDisplayBaseCurrency } from '@suite-common/wallet-core';
-import { hasNetworkFeatures } from '@suite-common/wallet-utils';
+import { hasNetworkFeatures, isTradingSupported } from '@suite-common/wallet-utils';
 import { Button, Card, Flex, InfoItem, Row, Text } from '@trezor/components';
 import { hasBitcoinOnlyFirmware } from '@trezor/device-utils';
 import { CoinLogo } from '@trezor/product-components';
@@ -32,6 +32,11 @@ export const TradeBox = ({ account }: TradeBoxProps) => {
     const { shallDisplayBaseCurrency } = useDisplayBaseCurrency(account.symbol);
 
     const isStakeNetwork = hasNetworkFeatures(account, 'staking');
+    const isTradeNetwork = isTradingSupported(account.symbol);
+
+    if (!isTradeNetwork && !isStakeNetwork) {
+        return null;
+    }
 
     const ActionButton = ({
         type,
@@ -175,16 +180,20 @@ export const TradeBox = ({ account }: TradeBoxProps) => {
                                 <Translation id="TR_STAKE_STAKE" />
                             </ActionButton>
                         )}
-                        <ActionButton type="buy">
-                            <Translation id="TR_NAV_BUY" />
-                        </ActionButton>
-                        <ActionButton type="sell" isDisabled={account.empty}>
-                            <Translation id="TR_NAV_SELL" />
-                        </ActionButton>
-                        {!hasBitcoinOnlyFirmware(device) && (
-                            <ActionButton type="exchange" isDisabled={account.empty}>
-                                <Translation id="TR_TRADING_SWAP" />
-                            </ActionButton>
+                        {isTradeNetwork && (
+                            <>
+                                <ActionButton type="buy">
+                                    <Translation id="TR_NAV_BUY" />
+                                </ActionButton>
+                                <ActionButton type="sell" isDisabled={account.empty}>
+                                    <Translation id="TR_NAV_SELL" />
+                                </ActionButton>
+                                {!hasBitcoinOnlyFirmware(device) && (
+                                    <ActionButton type="exchange" isDisabled={account.empty}>
+                                        <Translation id="TR_TRADING_SWAP" />
+                                    </ActionButton>
+                                )}
+                            </>
                         )}
                     </Row>
                 </Flex>

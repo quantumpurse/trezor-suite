@@ -725,7 +725,7 @@ export const networks = {
         backendTypes: ['ckb'],
         accountTypes: {},
         coingeckoId: 'nervos-network',
-        tradeCryptoId: 'nervos-network',
+        tradeCryptoId: undefined,
         yieldXyzId: null,
     },
     tckb: {

@@ -10,7 +10,7 @@ import { selectCoinDefinitions } from '@suite-common/token-definitions';
 import { type Network, type NetworkSymbol } from '@suite-common/wallet-config';
 import { selectAnyAccountIsStakingActive, useDisplayBaseCurrency } from '@suite-common/wallet-core';
 import { type Account, type RatesByKey } from '@suite-common/wallet-types';
-import { type AmountUnit } from '@suite-common/wallet-utils';
+import { type AmountUnit, isTradingSupported } from '@suite-common/wallet-utils';
 import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
 import {
     Card,
@@ -207,27 +207,31 @@ export const AssetCard = ({
                                 <TrendTicker symbol={symbol} />
                             </InfoItem>
 
-                            <Row gap={8}>
-                                {isStakeNetwork && (
-                                    <AssetActionButton
-                                        symbol={symbol}
-                                        data-testid={`@dashboard/asset/${symbol}/stake-button`}
-                                        onClick={onStakeButtonClick}
-                                        routeName="wallet-staking"
-                                    >
-                                        <Translation id="TR_STAKE_STAKE" />
-                                    </AssetActionButton>
-                                )}
+                            {(isStakeNetwork || isTradingSupported(symbol)) && (
+                                <Row gap={8}>
+                                    {isStakeNetwork && (
+                                        <AssetActionButton
+                                            symbol={symbol}
+                                            data-testid={`@dashboard/asset/${symbol}/stake-button`}
+                                            onClick={onStakeButtonClick}
+                                            routeName="wallet-staking"
+                                        >
+                                            <Translation id="TR_STAKE_STAKE" />
+                                        </AssetActionButton>
+                                    )}
 
-                                <AssetActionButton
-                                    symbol={symbol}
-                                    routeName="wallet-trading-buy"
-                                    data-testid={`@dashboard/asset/${symbol}/buy-button`}
-                                    onClick={onBuyButtonClick}
-                                >
-                                    <Translation id="TR_BUY_BUY" />
-                                </AssetActionButton>
-                            </Row>
+                                    {isTradingSupported(symbol) && (
+                                        <AssetActionButton
+                                            symbol={symbol}
+                                            routeName="wallet-trading-buy"
+                                            data-testid={`@dashboard/asset/${symbol}/buy-button`}
+                                            onClick={onBuyButtonClick}
+                                        >
+                                            <Translation id="TR_BUY_BUY" />
+                                        </AssetActionButton>
+                                    )}
+                                </Row>
+                            )}
                         </Row>
                     </Card>
                 )}
