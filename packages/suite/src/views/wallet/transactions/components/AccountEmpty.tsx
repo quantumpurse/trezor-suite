@@ -7,6 +7,7 @@ import {
     getNetworkDisplaySymbol,
     getNetworkFeatures,
 } from '@suite-common/wallet-config';
+import { isTradingSupported } from '@suite-common/wallet-utils';
 
 import { AccountExceptionLayout } from 'src/components/wallet';
 import { useDispatch } from 'src/hooks/suite';
@@ -87,19 +88,23 @@ export const AccountEmpty = ({ account }: AccountEmptyProps) => {
                         />
                     ),
                 },
-                {
-                    'data-testid': '@accounts/empty-account/buy',
-                    key: '2',
-                    onClick: handleNavigateToBuyPage,
-                    children: isTokensNetwork ? (
-                        <Translation id="TR_BUY" />
-                    ) : (
-                        <Translation
-                            id="TR_BUY_NETWORK"
-                            values={{ networkDisplaySymbol: displaySymbol }}
-                        />
-                    ),
-                },
+                ...(isTradingSupported(account.symbol)
+                    ? [
+                          {
+                              'data-testid': '@accounts/empty-account/buy',
+                              key: '2',
+                              onClick: handleNavigateToBuyPage,
+                              children: isTokensNetwork ? (
+                                  <Translation id="TR_BUY" />
+                              ) : (
+                                  <Translation
+                                      id="TR_BUY_NETWORK"
+                                      values={{ networkDisplaySymbol: displaySymbol }}
+                                  />
+                              ),
+                          },
+                      ]
+                    : []),
             ]}
         />
     );

@@ -1,6 +1,6 @@
 import { type MiddlewareAPI } from 'redux';
 
-import { routerLocationChange } from '@suite/router';
+import { goto, routerLocationChange } from '@suite/router';
 import {
     invityAPI,
     selectTradingAccountAccordingActiveSection,
@@ -13,6 +13,7 @@ import {
     tradingExchangeActions,
     tradingSellActions,
 } from '@suite-common/trading';
+import { isTradingSupported } from '@suite-common/wallet-utils';
 
 import { selectFullSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
 import { type Action, type AppState, type Dispatch } from 'src/types/suite';
@@ -34,6 +35,16 @@ export const tradingMiddleware =
         if (isRouteChange) {
             const routeName = nextState.router.route?.name;
             const isTradingRoute = !!routeName?.includes('wallet-trading');
+
+            if (isTradingRoute) {
+                const selectedAccount = selectFullSelectedAccount(nextState).account;
+                if (selectedAccount && !isTradingSupported(selectedAccount.symbol)) {
+                    api.dispatch(goto({ routeName: 'wallet-index', preserveParams: true }));
+
+                    return action;
+                }
+            }
+
             const isBuyForm = routeName === 'wallet-trading-buy';
             const isBuy = !!routeName?.startsWith('wallet-trading-buy');
             const isSellForm = routeName === 'wallet-trading-sell';

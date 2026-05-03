@@ -4,6 +4,7 @@ import { goto, selectIsAccountTabPage, selectRouteName } from '@suite/router';
 import { selectSelectedDevice } from '@suite-common/device';
 import { getTradingPrefilledFromAccountData, tradingActions } from '@suite-common/trading';
 import { type SelectedAccountStatus } from '@suite-common/wallet-types';
+import { isTradingSupported } from '@suite-common/wallet-utils';
 import { Row } from '@trezor/components';
 import { hasBitcoinOnlyFirmware } from '@trezor/device-utils';
 import { breakpoints } from '@trezor/theme';
@@ -89,6 +90,10 @@ export const TradeActions = ({ selectedAccount }: TradeActionsProps) => {
     };
 
     const isAccountLoading = selectedAccount ? selectedAccount.status === 'loading' : false;
+
+    if (account && !isTradingSupported(account.symbol)) {
+        return null;
+    }
 
     return (
         <Row gap={12}>

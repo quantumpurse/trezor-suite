@@ -10,6 +10,7 @@ import {
     type NetworkType,
     type TrezorConnectBackendType,
     getNetwork,
+    getNetworkOptional,
     networkSymbolCollection,
     networks,
 } from '@suite-common/wallet-config';
@@ -1093,6 +1094,12 @@ export const hasNetworkFeatures = (
         .every(feature => networkFeatures.includes(feature));
 
     return areFeaturesPresent;
+};
+
+export const isTradingSupported = (symbol: NetworkSymbol | undefined) => {
+    const network = getNetworkOptional(symbol);
+
+    return !!network?.tradeCryptoId && !network.testnet;
 };
 
 // https://developer.bitcoin.org/reference/transactions.html#outpoint-the-specific-part-of-a-specific-output

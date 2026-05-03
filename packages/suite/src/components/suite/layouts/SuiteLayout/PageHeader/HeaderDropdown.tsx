@@ -3,7 +3,7 @@ import { type JSX } from 'react';
 import { events } from '@suite/analytics';
 import { Translation } from '@suite/intl';
 import { getTradingPrefilledFromAccountData, tradingActions } from '@suite-common/trading';
-import { hasNetworkFeatures } from '@suite-common/wallet-utils';
+import { hasNetworkFeatures, isTradingSupported } from '@suite-common/wallet-utils';
 import { Dropdown, type DropdownMenuItemProps, type IconName } from '@trezor/components';
 import { breakpoints } from '@trezor/theme';
 
@@ -48,6 +48,8 @@ export const HeaderDropdown = ({
         minWidth: breakpoints.tablet,
     });
 
+    const isTradingUnsupported = !!account && !isTradingSupported(account.symbol);
+
     const additionalActions: ActionItem[] = [
         ...(showSignAndVerify
             ? [
@@ -90,7 +92,7 @@ export const HeaderDropdown = ({
             },
             title: <Translation id="TR_TRADING_BUY_AND_SELL" />,
             icon: 'currencyCircleDollar',
-            isHidden: isBuyVisible || isTradingDisabled,
+            isHidden: isBuyVisible || isTradingDisabled || isTradingUnsupported,
         },
         {
             id: 'wallet-swap',
@@ -117,7 +119,7 @@ export const HeaderDropdown = ({
             },
             title: <Translation id="TR_TRADING_SWAP" />,
             icon: 'arrowsLeftRight',
-            isHidden: isSwapVisible || isTradingDisabled,
+            isHidden: isSwapVisible || isTradingDisabled || isTradingUnsupported,
         },
     ];
 
