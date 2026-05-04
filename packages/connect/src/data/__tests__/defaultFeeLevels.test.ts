@@ -122,11 +122,9 @@ describe('getCkbFeeLevels', () => {
         expect(result).toEqual({
             blockTime: 1,
             defaultFees: [
-                {
-                    label: 'normal',
-                    feePerUnit: '1000',
-                    blocks: 1,
-                },
+                { label: 'high', feePerUnit: '2000', blocks: 1 },
+                { label: 'normal', feePerUnit: '1500', blocks: 1 },
+                { label: 'economy', feePerUnit: '1000', blocks: 1 },
             ],
             minFee: 1,
             maxFee: 100000,
