@@ -1,4 +1,5 @@
 import { BitcoinFeeCards } from './BitcoinFeeCards';
+import { CkbFeeCards } from './CkbFeeCards';
 import { EthereumFeeCards } from './EthereumFeeCards';
 import { MiscFeeCards } from './MiscFeeCards';
 import { useNetworkFeeOptions } from './hooks/useNetworkFeeOptions';
@@ -22,6 +23,9 @@ export const StandardFee = () => {
     switch (networkType) {
         case 'bitcoin':
             return <BitcoinFeeCards feeOptions={feeOptions} />;
+
+        case 'ckb':
+            return <CkbFeeCards feeOptions={feeOptions} />;
 
         case 'ethereum':
             return <EthereumFeeCards feeOptions={feeOptions} />;

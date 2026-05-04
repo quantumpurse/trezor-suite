@@ -2,6 +2,7 @@ import type { BitcoinNetworkInfo, CoinInfo } from '@trezor/connect-common';
 import { exhaustive } from '@trezor/type-utils';
 
 import { BitcoinFeeLevels } from './BitcoinFeeLevels';
+import { CkbFeeLevels } from './CkbFeeLevels';
 import { EthereumFeeLevels } from './EthereumFeeLevels';
 import { MiscFeeLevels } from './MiscFeeLevels';
 
@@ -16,7 +17,9 @@ const feeLevelsPerTypeFactory = (coinInfo: CoinInfo): MiscFeeLevels => {
         case 'ethereum':
             return new EthereumFeeLevels(coinInfo);
         case 'misc':
-            return new MiscFeeLevels(coinInfo);
+            return coinInfo.blockchainLink?.type === 'ckb'
+                ? new CkbFeeLevels(coinInfo)
+                : new MiscFeeLevels(coinInfo);
         default:
             return exhaustive(type);
     }
