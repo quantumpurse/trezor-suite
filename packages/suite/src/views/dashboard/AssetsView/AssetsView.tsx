@@ -144,13 +144,11 @@ export const AssetsView = () => {
             return allTokens;
         }, []);
 
-        const accountsForNetwork = accounts.filter(a => a.symbol === network.symbol);
-        const assetFailed =
-            accountsForNetwork.length > 0 && accountsForNetwork.every(account => !!account.failed);
+        const assetFailed = accounts.find(a => a.symbol === network.symbol && a.failed);
 
         return {
             network,
-            failed: assetFailed,
+            failed: !!assetFailed,
             assetNativeCryptoBalance: assetNativeCryptoBalance
                 ? assetNativeCryptoBalance
                 : AMOUNT_UNIT_ZERO,

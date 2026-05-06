@@ -293,7 +293,14 @@ const getLockScriptTransactions = async ({
     const start = Math.max(0, ((page ?? 1) - 1) * pageSize);
     const end = start + pageSize;
 
+    let pageFilled = false;
+
     for await (const tx of client.findTransactionsByLock(lockScript, undefined, true, 'desc')) {
+        if (pageFilled) {
+            total++;
+            continue;
+        }
+
         const txResponse = await fetchTx(String(tx.txHash));
         if (!txResponse) {
             continue;
@@ -323,7 +330,7 @@ const getLockScriptTransactions = async ({
         total++;
 
         if (total >= end && page !== undefined) {
-            break;
+            pageFilled = true;
         }
     }
 
