@@ -37,25 +37,11 @@ class TrezorCkbSignError extends Error {
 }
 
 /**
- * Convert signature from Trezor format to CKB format.
+ * Validate CKB signature from Trezor firmware.
  *
- * Trezor's secp256k1.sign(compressed=True) returns 65 bytes: [v(1) || r(32) || s(32)]
- * where v = 27 + recovery_id + 4 = 31 + recovery_id (compressed keys add 4).
- *
- * CKB's secp256k1_blake160 lock script expects 65 bytes: [r(32) || s(32) || recovery_id(1)]
- * where recovery_id is 0 or 1, parsed via secp256k1_ecdsa_recoverable_signature_parse_compact.
+ * Firmware outputs CKB native format directly: [r(32) || s(32) || recovery_id(1)] = 65 bytes.
+ * No conversion needed — just validate length and strip hex prefix.
  */
-export const convertTrezorSigToCkb = (sigHex: string): string => {
-    const sig = sigHex.startsWith('0x') ? sigHex.slice(2) : sigHex;
-    // sig is 130 hex chars = 65 bytes: v(2 hex) + r(64 hex) + s(64 hex)
-    const v = parseInt(sig.slice(0, 2), 16);
-    // v = 31 + recid for compressed, v = 27 + recid for uncompressed
-    const recid = v >= 31 ? v - 31 : v - 27;
-    const rs = sig.slice(2); // r(32 bytes) || s(32 bytes) = 128 hex chars
-
-    return rs + recid.toString(16).padStart(2, '0');
-};
-
 export const normalizeTrezorCkbSignature = (sigHex: string): string => {
     const sig = sigHex.startsWith('0x') ? sigHex.slice(2) : sigHex;
 
@@ -63,23 +49,7 @@ export const normalizeTrezorCkbSignature = (sigHex: string): string => {
         throw new Error('Unexpected CKB signature length returned by Trezor.');
     }
 
-    const firstByte = parseInt(sig.slice(0, 2), 16);
-
-    // Trezor vrs format: first byte is v = 27+recid (uncompressed) or 31+recid (compressed).
-    // Must be checked BEFORE the last-byte check because the last byte of s in
-    // a Trezor signature can coincidentally be 0-3, which would otherwise cause
-    // the signature to be returned unconverted.
-    if (firstByte >= 27 && firstByte <= 34) {
-        return convertTrezorSigToCkb(sig);
-    }
-
-    // Already in CKB format: r(32) || s(32) || recid(1) where recid is 0-3.
-    const lastByte = parseInt(sig.slice(-2), 16);
-    if (lastByte <= 3) {
-        return sig;
-    }
-
-    throw new Error('Unexpected CKB signature format returned by Trezor.');
+    return sig;
 };
 
 const createCkbClient = (symbol: Account['symbol'], url?: string): CkbClient => {
