@@ -472,31 +472,33 @@ export const composeCkbTransactionFeeLevelsThunk = createThunk<
             });
 
             const hasAtLeastOneValid = response.find(r => r.type !== 'error');
-            // There is no valid tx in predefinedLevels and there is no custom level
+            // There is no valid tx in predefinedLevels and there is no custom level.
+            // Use binary search to find the highest fee rate that produces a valid tx.
             if (!hasAtLeastOneValid && !resultLevels.custom) {
                 const lastKnownFee = predefinedLevels[predefinedLevels.length - 1].feePerUnit;
-                const minFee = BigInt(feeInfo.minFee);
-                let maxFee = BigInt(lastKnownFee) - 1n;
-                const customLevels: FeeLevel[] = [];
-                while (maxFee >= minFee) {
-                    customLevels.push({
-                        feePerUnit: maxFee.toString(),
-                        label: 'custom',
-                        blocks: -1,
+                let lo = BigInt(feeInfo.minFee);
+                let hi = BigInt(lastKnownFee) - 1n;
+                let bestResult: PrecomposedTransaction | undefined;
+
+                while (lo <= hi) {
+                    const mid = lo + (hi - lo) / 2n;
+                    const midResult = await composeCkbTransaction({
+                        output,
+                        feeLevel: { feePerUnit: mid.toString(), label: 'custom', blocks: -1 },
+                        recipientAddress,
+                        signer,
                     });
-                    maxFee -= 1n;
+
+                    if (midResult.type !== 'error') {
+                        bestResult = midResult;
+                        lo = mid + 1n;
+                    } else {
+                        hi = mid - 1n;
+                    }
                 }
 
-                const customLevelsResponse = await composeCkbTransactions({
-                    feeLevels: customLevels,
-                    output,
-                    recipientAddress,
-                    signer,
-                });
-
-                const customValid = customLevelsResponse.findIndex(r => r.type !== 'error');
-                if (customValid >= 0) {
-                    resultLevels.custom = customLevelsResponse[customValid];
+                if (bestResult) {
+                    resultLevels.custom = bestResult;
                 }
             }
 
