@@ -25,6 +25,7 @@ var SYSValidator = require('./sys_validator');
 var ZILValidator = require('./zil_validator');
 var NXTValidator = require('./nxt_validator');
 var SOLValidator = require('./solana_validator');
+var CKBValidator = require('./ckb_validator');
 
 // defines P2PKH, P2SH and bech32 address types for standard (prod) and testnet networks
 var CURRENCIES = [
@@ -1496,6 +1497,11 @@ var CURRENCIES = [
         name: 'Zilliqa',
         symbol: 'zil',
         validator: ZILValidator,
+    },
+    {
+        name: 'Nervos',
+        symbol: 'ckb',
+        validator: CKBValidator,
     },
 ];
 

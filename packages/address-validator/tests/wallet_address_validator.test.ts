@@ -1639,5 +1639,41 @@ describe('WAValidator.validate()', function () {
                 'sol',
             );
         });
+
+        it('should return true for correct CKB addresses', function () {
+            valid(
+                'ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdt4w46h2at4w46h2at4w46h2at4w46h2c977uls',
+                'ckb',
+            );
+            valid(
+                'ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdt4w46h2at4w46h2at4w46h2at4w46h2c977uls',
+                'CKB',
+            );
+            valid(
+                'ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdt4w46h2at4w46h2at4w46h2at4w46h2c977uls',
+                'Nervos',
+            );
+            valid(
+                'ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdt4w46h2at4w46h2at4w46h2at4w46h2ctv4n4g',
+                'ckb',
+                'testnet',
+            );
+        });
+
+        it('should return false for incorrect CKB addresses', function () {
+            invalid('notavalidaddress', 'ckb');
+            invalid('', 'ckb');
+            invalid('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', 'ckb');
+            invalid(
+                'ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdt4w46h2at4w46h2at4w46h2at4w46h2c977uls',
+                'ckb',
+                'testnet',
+            );
+            invalid(
+                'ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdt4w46h2at4w46h2at4w46h2at4w46h2ctv4n4g',
+                'ckb',
+                'prod',
+            );
+        });
     });
 });
