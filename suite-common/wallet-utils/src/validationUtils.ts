@@ -30,6 +30,8 @@ const getCoinFromTestnet = (symbol: Account['symbol']) => {
         case 'tsep':
         case 'thod':
             return 'eth';
+        case 'tckb':
+            return 'ckb';
         default:
             return symbol;
     }
