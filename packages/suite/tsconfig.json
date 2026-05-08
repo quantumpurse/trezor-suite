@@ -67,6 +67,7 @@
         {
             "path": "../../suite-common/geolocation"
         },
+        { "path": "../../suite-common/graph" },
         { "path": "../../suite-common/logger" },
         {
             "path": "../../suite-common/message-system"

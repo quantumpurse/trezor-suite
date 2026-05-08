@@ -1,4 +1,5 @@
 import {
+    type LocalBalanceHistoryCoin,
     getAccountHistoryMovementFromTransactions,
     isLocalBalanceHistoryCoin,
 } from '@suite-common/graph';
@@ -40,7 +41,7 @@ const getLocalBalanceMovementHistory = (
 ) =>
     getAccountHistoryMovementFromTransactions({
         transactions,
-        symbol: account.symbol,
+        symbol: account.symbol as LocalBalanceHistoryCoin | 'btc',
     }).main.map(item => ({
         ...item,
         received: item.received.toString(),

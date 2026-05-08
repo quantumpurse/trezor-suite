@@ -3,8 +3,8 @@ import { DeviceModelInternal, getFirmwareOrBootloaderVersionArray } from '@trezo
 import type { MessagesSchema as PROTO } from '@trezor/protobuf';
 import { isArrayMember, versionUtils } from '@trezor/utils';
 
-import { config } from '../data/config';
 import { isCkbCoin } from './coinInfoUtils';
+import { config } from '../data/config';
 
 const DEFAULT_CAPABILITIES_T1: PROTO.Capability[] = [
     'Capability_Bitcoin',
