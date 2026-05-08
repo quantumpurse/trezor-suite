@@ -85,6 +85,11 @@ export const accountTypeTranslationKeys: Record<
         subtitleKey: 'moduleAddAccounts.selectAccountTypeScreen.accountTypes.legacy.subtitle',
         descKey: 'moduleAddAccounts.selectAccountTypeScreen.accountTypes.legacy.desc',
     },
+    ecdsa: {
+        titleKey: 'moduleAddAccounts.selectAccountTypeScreen.accountTypes.normal.title',
+        subtitleKey: 'moduleAddAccounts.selectAccountTypeScreen.accountTypes.normal.subtitle',
+        descKey: 'moduleAddAccounts.selectAccountTypeScreen.accountTypes.normal.desc',
+    },
 };
 
 const LIMIT = 10; // Maximum number of manually added accounts per non-EVM network type.

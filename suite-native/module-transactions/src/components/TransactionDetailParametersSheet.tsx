@@ -37,6 +37,7 @@ const networkTypeToDisplayedParametersMap: Record<NetworkType, TransactionParame
     solana: [],
     stellar: [],
     tron: [],
+    ckb: [],
 };
 
 const getEnabledTitleTranslationId = (enabled: boolean) =>
