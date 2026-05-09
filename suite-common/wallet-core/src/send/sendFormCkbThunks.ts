@@ -37,12 +37,6 @@ class TrezorCkbSignError extends Error {
     }
 }
 
-/**
- * Validate CKB signature from Trezor firmware.
- *
- * Firmware outputs CKB native format directly: [r(32) || s(32) || recovery_id(1)] = 65 bytes.
- * No conversion needed — just validate length and strip hex prefix.
- */
 export const normalizeTrezorCkbSignature = (sigHex: string): string => {
     const sig = sigHex.startsWith('0x') ? sigHex.slice(2) : sigHex;
 
@@ -187,7 +181,6 @@ class TrezorCkbSigner extends ccc.Signer {
         const tx = ccc.Transaction.from(txLike);
         const { script } = await this.getRecommendedAddressObj();
 
-        ensureCkbInputWitnesses(tx);
         const signHashInfo = await tx.getSignHashInfo(script, this.client);
 
         if (!signHashInfo) {
@@ -405,7 +398,6 @@ export const composeCkbTransactionFeeLevelsThunk = createThunk<
         const { output } = composeOutputs;
         const blockchain = selectNetworkBlockchainInfo(getState(), account.symbol);
         const predefinedLevels = feeInfo.levels.filter(l => l.label !== 'custom');
-        // In case when selectedFee is set to 'custom', construct this FeeLevel from values
         if (formState.selectedFee === 'custom') {
             predefinedLevels.push({
                 label: 'custom',
@@ -429,7 +421,6 @@ export const composeCkbTransactionFeeLevelsThunk = createThunk<
         const recipientAddress = getCkbRecipientAddress(account, output);
 
         try {
-            // Wrap response into PrecomposedLevels object where key is a FeeLevel label
             const resultLevels: PrecomposedLevels = {};
             const response = await composeCkbTransactions({
                 feeLevels: predefinedLevels,
@@ -442,9 +433,7 @@ export const composeCkbTransactionFeeLevelsThunk = createThunk<
                 resultLevels[feeLabel] = tx;
             });
 
-            const hasAtLeastOneValid = response.find(r => r.type !== 'error');
-            // There is no valid tx in predefinedLevels and there is no custom level.
-            // Use binary search to find the highest fee rate that produces a valid tx.
+            const hasAtLeastOneValid = response.some(r => r.type !== 'error');
             if (!hasAtLeastOneValid && !resultLevels.custom) {
                 const lastKnownFee = predefinedLevels[predefinedLevels.length - 1].feePerUnit;
                 let lo = BigInt(feeInfo.minFee);
@@ -473,7 +462,6 @@ export const composeCkbTransactionFeeLevelsThunk = createThunk<
                 }
             }
 
-            // Format max (compose sends it as shannons)
             Object.keys(resultLevels).forEach(key => {
                 const tx = resultLevels[key];
                 if (tx.type !== 'error' && tx.max) {

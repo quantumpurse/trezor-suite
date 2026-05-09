@@ -44,7 +44,7 @@ export const CkbFeeCards = ({ feeOptions }: CkbFeeCardsProps) => {
                         shallDisplayBaseCurrency && (
                             <BaseCurrencyValue
                                 disableHiddenPlaceholder
-                                amount={fee?.networkAmount ?? ''}
+                                amount={fee.networkAmount ?? ''}
                                 symbol={networkSymbol}
                                 showApproximationIndicator
                             />
