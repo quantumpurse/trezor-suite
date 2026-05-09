@@ -42,7 +42,6 @@ export default class CkbGetAddress extends AbstractMethod<'ckbGetAddress', Param
     constructor(message: MethodMessage<'ckbGetAddress'>) {
         const { hasBundle, payload } = bundlify(message.payload);
 
-        // validate bundle type
         Assert(Bundle(CkbGetAddressSchema), payload);
 
         const params = payload.bundle.map(batch => {
@@ -153,7 +152,6 @@ export default class CkbGetAddress extends AbstractMethod<'ckbGetAddress', Param
             });
 
             if (this.hasBundle) {
-                // send progress
                 sendCoreMessage(
                     createUiMessage(UI_REQUEST.BUNDLE_PROGRESS, {
                         total: this.params.length,

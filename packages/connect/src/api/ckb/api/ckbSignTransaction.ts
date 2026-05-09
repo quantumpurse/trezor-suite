@@ -30,7 +30,6 @@ type CkbNetwork = 'Mainnet' | 'Testnet';
 
 type CKBSignTxInitialParams = PROTO.CKBSignTx & { network: CkbNetwork };
 
-// Streaming loop: process CKBTxRequest from the device
 const processCkbTxRequest = async (
     typedCall: TypedCall,
     txRequest: PROTO.CKBTxRequest,
@@ -41,7 +40,6 @@ const processCkbTxRequest = async (
     const { request_type, details, serialized } = txRequest;
 
     if (request_type === 'TXFINISHED') {
-        // TXFINISHED
         if (!serialized || !serialized.signature || !serialized.tx_hash) {
             throw ERRORS.TypedError(
                 'Runtime',
@@ -58,7 +56,6 @@ const processCkbTxRequest = async (
     const requestIndex = details?.request_index ?? 0;
 
     if (request_type === 'TXINPUT') {
-        // TXINPUT
         const input = inputs[requestIndex];
         if (!input) {
             throw ERRORS.TypedError(
@@ -75,7 +72,6 @@ const processCkbTxRequest = async (
     }
 
     if (request_type === 'TXOUTPUT') {
-        // TXOUTPUT
         const output = outputs[requestIndex];
         if (!output) {
             throw ERRORS.TypedError(
@@ -92,7 +88,6 @@ const processCkbTxRequest = async (
     }
 
     if (request_type === 'TXCELLDEP') {
-        // TXCELLDEP
         const cellDep = cellDeps[requestIndex];
         if (!cellDep) {
             throw ERRORS.TypedError(
@@ -122,7 +117,6 @@ export default class CkbSignTransaction extends AbstractMethod<
     constructor(message: MethodMessage<'ckbSignTransaction'>) {
         const { payload } = message;
 
-        // validate incoming parameters
         Assert(CKBSignTransactionSchema, payload);
 
         const path = validatePath(payload.path, 3);
@@ -152,14 +146,12 @@ export default class CkbSignTransaction extends AbstractMethod<
             );
         }
 
-        // Prepare inputs for streaming
         const inputs = transaction.inputs.map(input => ({
             previous_output_tx_hash: stripHex(input.previousOutput.txHash),
             previous_output_index: Number(input.previousOutput.index),
             since: String(input.since ?? '0'),
         }));
 
-        // Prepare outputs for streaming
         const outputs = transaction.outputs.map((output, i) => {
             const outputData = transaction.outputsData[i];
 
@@ -185,14 +177,12 @@ export default class CkbSignTransaction extends AbstractMethod<
             };
         });
 
-        // Prepare cell deps for streaming
         const cellDeps = transaction.cellDeps.map(dep => ({
             tx_hash: stripHex(dep.outPoint.txHash),
             index: Number(dep.outPoint.index),
             dep_type: DEP_TYPE_MAP[dep.depType] ?? 0,
         }));
 
-        // Initial message sends only counts
         const params: CKBSignTxInitialParams = {
             address_n: fullPath,
             network,
@@ -223,10 +213,8 @@ export default class CkbSignTransaction extends AbstractMethod<
         const cmd = this.getDevice().getCommands();
         const typedCall = cmd.typedCall.bind(cmd);
 
-        // Send initial CKBSignTx with counts only, expect CKBTxRequest back
         const { message } = await typedCall('CKBSignTx', 'CKBTxRequest', this.params);
 
-        // Enter streaming loop
         return processCkbTxRequest(typedCall, message, this.inputs, this.outputs, this.cellDeps);
     }
 }

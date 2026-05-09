@@ -21,7 +21,6 @@ import { BaseWorker, CONTEXT, type ContextType } from '../baseWorker';
 type Context = ContextType<CccClient>;
 type Request<T> = T & Context;
 
-// CKB has 8 decimal places (1 CKB = 10^8 shannons)
 const CKB_DECIMALS = 8;
 const DEFAULT_PAGE_SIZE = 25;
 
@@ -62,14 +61,13 @@ const createBlockTimestampFetcher = (client: CccClient): BlockTimestampFetcher =
         try {
             const header = await client.getHeaderByNumber(blockNum);
             if (header) {
-                // CKB timestamp is in milliseconds, convert to seconds
                 const timestamp = Number(header.timestamp) / 1000;
                 blockTimestampCache.set(blockNum, timestamp);
 
                 return timestamp;
             }
         } catch {
-            // ignore header fetch failures
+            // ignored
         }
 
         return undefined;
@@ -293,14 +291,7 @@ const getLockScriptTransactions = async ({
     const start = Math.max(0, ((page ?? 1) - 1) * pageSize);
     const end = start + pageSize;
 
-    let pageFilled = false;
-
     for await (const tx of client.findTransactionsByLock(lockScript, undefined, true, 'desc')) {
-        if (pageFilled) {
-            total++;
-            continue;
-        }
-
         const txResponse = await fetchTx(String(tx.txHash));
         if (!txResponse) {
             continue;
@@ -328,10 +319,6 @@ const getLockScriptTransactions = async ({
         }
 
         total++;
-
-        if (total >= end && page !== undefined) {
-            pageFilled = true;
-        }
     }
 
     return {
@@ -364,7 +351,6 @@ const getAccountInfo = async (request: Request<MessageTypes.GetAccountInfo>) => 
     const { payload } = request;
     const client = await request.connect();
 
-    // Default empty account state
     const account: AccountInfo = {
         descriptor: payload.descriptor,
         balance: '0',
@@ -378,19 +364,15 @@ const getAccountInfo = async (request: Request<MessageTypes.GetAccountInfo>) => 
     };
 
     try {
-        // Parse CKB address to get lock script
         const address = await Address.fromString(payload.descriptor, client);
         const lockScript = address.script;
 
-        // Get balance (in shannons)
         const balance = await client.getBalanceSingle(lockScript);
         const balanceStr = balance.toString();
 
         account.balance = balanceStr;
         account.availableBalance = balanceStr;
 
-        // Get transaction history if requested.
-        // History fetching is best-effort and should not break discovery.
         if (payload.details === 'txs') {
             try {
                 const pageSize = payload.pageSize || DEFAULT_PAGE_SIZE;
@@ -468,7 +450,6 @@ const getTransactionHex = (_request: Request<MessageTypes.GetTransactionHex>) =>
 
 const pushTransaction = async ({ connect, payload }: Request<MessageTypes.PushTransaction>) => {
     const client = await connect();
-    // payload.hex contains the serialized transaction
     const txHash = await client.sendTransactionNoCache(JSON.parse(payload.hex));
 
     return {
@@ -524,7 +505,6 @@ const estimateFee = async (request: Request<MessageTypes.EstimateFee>) => {
     } as const;
 };
 
-// Block subscription via polling
 let blockPollInterval: ReturnType<typeof setInterval> | undefined;
 
 const subscribeBlock = async (ctx: Context) => {
@@ -552,9 +532,9 @@ const subscribeBlock = async (ctx: Context) => {
                     });
                 }
             } catch {
-                // ignore polling errors
+                // ignored
             }
-        }, 15000); // Poll every 15 seconds
+        }, 15000);
     }
 
     return { subscribed: true };
@@ -620,7 +600,6 @@ const getAccountUtxo = async (request: Request<MessageTypes.GetAccountUtxo>) => 
         const address = await Address.fromString(descriptor, client);
         const lockScript = address.script;
 
-        // Collect CKB live cells as UTXOs
         const utxos: Utxo[] = [];
         for await (const cell of client.findCellsByLock(lockScript, undefined, true)) {
             const txResponse = await fetchTx(String(cell.outPoint.txHash));
@@ -628,7 +607,7 @@ const getAccountUtxo = async (request: Request<MessageTypes.GetAccountUtxo>) => 
             const confirmations = blockHeight > 0 ? Math.max(0, tip - blockHeight + 1) : 0;
 
             utxos.push({
-                txid: String(cell.outPoint.txHash).replace(/^0x/, ''),
+                txid: trimHexPrefix(String(cell.outPoint.txHash)),
                 vout: Number(cell.outPoint.index),
                 amount: cell.cellOutput.capacity.toString(),
                 blockHeight,
@@ -643,7 +622,6 @@ const getAccountUtxo = async (request: Request<MessageTypes.GetAccountUtxo>) => 
             payload: utxos,
         } as const;
     } catch {
-        // Return empty UTXO set on any error (e.g. address parse failure, RPC error)
         return {
             type: RESPONSES.GET_ACCOUNT_UTXO,
             payload: [] as Utxo[],
@@ -684,7 +662,6 @@ class CkbWorker extends BaseWorker<CccClient> {
     }
 
     async tryConnect(url: string): Promise<CccClient> {
-        // Determine if mainnet or testnet based on url or settings
         const isTestnet =
             url.includes('testnet') || this.settings.name?.toLowerCase().includes('tckb');
 
@@ -692,7 +669,6 @@ class CkbWorker extends BaseWorker<CccClient> {
             ? new ClientPublicTestnet({ url })
             : new ClientPublicMainnet({ url });
 
-        // Verify connection by fetching tip
         await client.getTip();
 
         this.post({ id: -1, type: RESPONSES.CONNECTED });
@@ -729,13 +705,11 @@ class CkbWorker extends BaseWorker<CccClient> {
     }
 }
 
-// export worker factory used in src/index
 export default function Ckb() {
     return new CkbWorker();
 }
 
 if (CONTEXT === 'worker') {
-    // Initialize module if script is running in worker context
     const module = new CkbWorker();
     onmessage = module.messageHandler.bind(module);
 }
