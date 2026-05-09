@@ -388,7 +388,6 @@ const getAccountInfo = async (request: Request<MessageTypes.GetAccountInfo>) => 
 
         account.balance = balanceStr;
         account.availableBalance = balanceStr;
-        account.empty = balance === BigInt(0);
 
         // Get transaction history if requested.
         // History fetching is best-effort and should not break discovery.
@@ -421,6 +420,8 @@ const getAccountInfo = async (request: Request<MessageTypes.GetAccountInfo>) => 
                 };
             }
         }
+
+        account.empty = balance === BigInt(0) && account.history.total <= 0;
     } catch (error: unknown) {
         // If account doesn't exist or other error, return empty account
         if (
