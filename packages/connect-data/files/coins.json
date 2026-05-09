@@ -2603,7 +2603,7 @@
         {
             "blockchain_link": {
                 "type": "ckb",
-                "url": ["https://mainnet.ckb.dev/"]
+                "url": ["wss://mainnet.ckb.dev/ws"]
             },
             "blocktime_seconds": 10,
             "curve": "secp256k1",
@@ -2627,7 +2627,7 @@
         {
             "blockchain_link": {
                 "type": "ckb",
-                "url": ["https://testnet.ckb.dev/"]
+                "url": ["wss://testnet.ckb.dev/ws"]
             },
             "blocktime_seconds": 10,
             "curve": "secp256k1",
