@@ -30,7 +30,6 @@ type BlockTimestampFetcher = (blockNum: number) => Promise<number | undefined>;
 type AccountHistoryTransaction = Transaction & { blockTime: number };
 
 const normalizeTxHash = (hash: string) => (hash.startsWith('0x') ? hash : `0x${hash}`);
-const trimHexPrefix = (hash: string) => hash.replace(/^0x/, '');
 
 const createTransactionFetcher = (client: CccClient): TransactionFetcher => {
     const txCache = new Map<string, Awaited<ReturnType<typeof client.getTransaction>>>();
@@ -170,7 +169,7 @@ const mapTransaction = async ({
             if (!prevOutput) {
                 vin.push({
                     n: i,
-                    txid: trimHexPrefix(prevHash),
+                    txid: prevHash,
                     vout: prevIndex,
                     addresses: [],
                     isAddress: false,
@@ -188,7 +187,7 @@ const mapTransaction = async ({
 
             vin.push({
                 n: i,
-                txid: trimHexPrefix(prevHash),
+                txid: prevHash,
                 vout: prevIndex,
                 addresses: [],
                 isAddress: true,
@@ -198,7 +197,7 @@ const mapTransaction = async ({
         } catch {
             vin.push({
                 n: i,
-                txid: trimHexPrefix(prevHash),
+                txid: prevHash,
                 vout: prevIndex,
                 addresses: [],
                 isAddress: false,
@@ -253,9 +252,9 @@ const mapTransaction = async ({
 
     return {
         type,
-        txid: trimHexPrefix(String(txObj.hash())),
+        txid: String(txObj.hash()),
         blockHeight: blockNum,
-        blockHash: txResponse.blockHash ? trimHexPrefix(String(txResponse.blockHash)) : undefined,
+        blockHash: txResponse.blockHash ? String(txResponse.blockHash) : undefined,
         blockTime,
         amount,
         fee,
@@ -454,7 +453,7 @@ const pushTransaction = async ({ connect, payload }: Request<MessageTypes.PushTr
 
     return {
         type: RESPONSES.PUSH_TRANSACTION,
-        payload: txHash.slice(2), // remove '0x' prefix
+        payload: String(txHash),
     } as const;
 };
 
@@ -484,24 +483,6 @@ const getAccountBalanceHistory = async (
     return {
         type: RESPONSES.GET_ACCOUNT_BALANCE_HISTORY,
         payload: aggregateTransactions(filteredTransactions, payload.groupBy),
-    } as const;
-};
-
-const estimateFee = async (request: Request<MessageTypes.EstimateFee>) => {
-    const client = await request.connect();
-    const feeRate = await client.getFeeRate();
-
-    // feeRate is in shannons/KB
-    const feePerUnit = feeRate.toString();
-
-    const payload =
-        request.payload && Array.isArray(request.payload.blocks)
-            ? request.payload.blocks.map(() => ({ feePerUnit }))
-            : [{ feePerUnit }];
-
-    return {
-        type: RESPONSES.ESTIMATE_FEE,
-        payload,
     } as const;
 };
 
@@ -607,7 +588,7 @@ const getAccountUtxo = async (request: Request<MessageTypes.GetAccountUtxo>) => 
             const confirmations = blockHeight > 0 ? Math.max(0, tip - blockHeight + 1) : 0;
 
             utxos.push({
-                txid: trimHexPrefix(String(cell.outPoint.txHash)),
+                txid: String(cell.outPoint.txHash),
                 vout: Number(cell.outPoint.index),
                 amount: cell.cellOutput.capacity.toString(),
                 blockHeight,
@@ -643,8 +624,6 @@ const onRequest = (request: Request<MessageTypes.Message>) => {
             return getTransactionHex(request);
         case MESSAGES.GET_ACCOUNT_BALANCE_HISTORY:
             return getAccountBalanceHistory(request);
-        case MESSAGES.ESTIMATE_FEE:
-            return estimateFee(request);
         case MESSAGES.PUSH_TRANSACTION:
             return pushTransaction(request);
         case MESSAGES.SUBSCRIBE:
