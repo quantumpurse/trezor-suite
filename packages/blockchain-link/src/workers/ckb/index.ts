@@ -588,7 +588,7 @@ const getAccountUtxo = async (request: Request<MessageTypes.GetAccountUtxo>) => 
             const confirmations = blockHeight > 0 ? Math.max(0, tip - blockHeight + 1) : 0;
 
             utxos.push({
-                txid: String(cell.outPoint.txHash),
+                txid: String(cell.outPoint.txHash).replace(/^0x/, ''),
                 vout: Number(cell.outPoint.index),
                 amount: cell.cellOutput.capacity.toString(),
                 blockHeight,
