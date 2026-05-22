@@ -65,11 +65,14 @@ import {
 import {
     CKBAddress,
     CKBGetAddress,
+    CKBMessageSignature,
+    CKBSignMessage,
     CKBSignTx,
     CKBTxAckCellDep,
     CKBTxAckInput,
     CKBTxAckOutput,
     CKBTxRequest,
+    CKBVerifyMessage,
 } from './messages-ckb';
 import {
     ButtonAck,
@@ -409,6 +412,9 @@ export const MessageType = Type.Object(
         CardanoMessageSignature,
         CKBGetAddress,
         CKBAddress,
+        CKBSignMessage,
+        CKBMessageSignature,
+        CKBVerifyMessage,
         CKBSignTx,
         CKBTxRequest,
         CKBTxAckInput,
@@ -668,6 +674,8 @@ export type WireInMessage =
     | 'CardanoSignMessageInit'
     | 'CardanoMessageDataResponse'
     | 'CKBGetAddress'
+    | 'CKBSignMessage'
+    | 'CKBVerifyMessage'
     | 'CKBSignTx'
     | 'CKBTxAckInput'
     | 'CKBTxAckOutput'
@@ -804,6 +812,7 @@ export type WireOutMessage =
     | 'CardanoMessageDataRequest'
     | 'CardanoMessageSignature'
     | 'CKBAddress'
+    | 'CKBMessageSignature'
     | 'CKBTxRequest'
     | 'CipheredKeyValue'
     | 'SignedIdentity'

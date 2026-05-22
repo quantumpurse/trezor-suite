@@ -1,5 +1,8 @@
 import { selectSelectedDevice } from '@suite-common/device';
-import { notificationsActions } from '@suite-common/toast-notifications';
+import {
+    notificationsActions,
+    selectVisibleNotificationsByType,
+} from '@suite-common/toast-notifications';
 import { selectAddressDisplayType } from '@suite-common/wallet-core';
 import { AddressDisplayOptions } from '@suite-common/wallet-types';
 import {
@@ -65,6 +68,12 @@ const showAddressByNetwork =
                 return TrezorConnect.getAddress(params);
             case 'ethereum':
                 return TrezorConnect.ethereumGetAddress(params);
+            case 'ckb':
+                return TrezorConnect.ckbGetAddress({
+                    ...params,
+                    coin: account.symbol === 'tckb' ? 'tckb' : 'ckb',
+                    network: account.symbol === 'tckb' ? 'Testnet' : 'Mainnet',
+                });
             default:
                 return Promise.reject(new Error('ShowAddress not supported'));
         }
@@ -86,6 +95,15 @@ const signByNetwork =
                 return TrezorConnect.signMessage(params);
             case 'ethereum':
                 return TrezorConnect.ethereumSignMessage(params);
+            case 'ckb':
+                return TrezorConnect.ckbSignMessage({
+                    device,
+                    path,
+                    message,
+                    hex,
+                    network: account.symbol === 'tckb' ? 'Testnet' : 'Mainnet',
+                    chunkify: true,
+                });
             case 'cardano': {
                 const payload = hex ? message : Buffer.from(message, 'utf8').toString('hex');
                 const serializedPath = typeof path === 'string' ? path : getSerializedPath(path);
@@ -129,6 +147,7 @@ export const isVerifySupported = (account?: Account) => {
     switch (account?.networkType) {
         case 'bitcoin':
         case 'ethereum':
+        case 'ckb':
             return true;
         default:
             return false;
@@ -145,6 +164,16 @@ const verifyByNetwork =
                 return TrezorConnect.verifyMessage(params);
             case 'ethereum':
                 return TrezorConnect.ethereumVerifyMessage(params);
+            case 'ckb':
+                return TrezorConnect.ckbVerifyMessage({
+                    device,
+                    address,
+                    message,
+                    signature,
+                    hex,
+                    network: account.symbol === 'tckb' ? 'Testnet' : 'Mainnet',
+                    chunkify: true,
+                });
             default:
                 return Promise.reject(new Error('Verifying not supported'));
         }
@@ -202,18 +231,26 @@ export const showAddress =
 
 export const sign =
     (path: string | number[], message: string, hex = false, isElectrum = false, isCose = false) =>
-    (dispatch: Dispatch, getState: GetState) =>
-        getStateParams(getState)
+    (dispatch: Dispatch, getState: GetState) => {
+        const staleToasts = selectVisibleNotificationsByType(getState(), 'sign-message-error');
+        staleToasts.forEach(n => dispatch(notificationsActions.close(n.id)));
+
+        return getStateParams(getState)
             .then(signByNetwork(path, message, hex, isElectrum, isCose))
             .then(throwWhenFailed)
             .then(onSignSuccess(dispatch))
             .catch(onError(dispatch, 'sign-message-error'));
+    };
 
 export const verify =
     (address: string, message: string, signature: string, hex = false) =>
-    (dispatch: Dispatch, getState: GetState) =>
-        getStateParams(getState)
+    (dispatch: Dispatch, getState: GetState) => {
+        const staleToasts = selectVisibleNotificationsByType(getState(), 'verify-message-error');
+        staleToasts.forEach(n => dispatch(notificationsActions.close(n.id)));
+
+        return getStateParams(getState)
             .then(verifyByNetwork(address, message, signature, hex))
             .then(throwWhenFailed)
             .then(onVerifySuccess(dispatch))
             .catch(onError(dispatch, 'verify-message-error'));
+    };

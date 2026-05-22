@@ -718,7 +718,7 @@ export const networks = {
         decimals: 8,
         testnet: false,
         explorer: getExplorerUrls('https://explorer.nervos.org', 'ckb'),
-        features: ['graph'],
+        features: ['graph', 'sign-verify'],
         support: {
             [DeviceModelInternal.T3W1]: '2.6.1',
         },
@@ -737,7 +737,7 @@ export const networks = {
         decimals: 8,
         testnet: true,
         explorer: getExplorerUrls('https://pudge.explorer.nervos.org', 'ckb'),
-        features: ['graph'],
+        features: ['graph', 'sign-verify'],
         support: {
             [DeviceModelInternal.T3W1]: '2.6.1',
         },

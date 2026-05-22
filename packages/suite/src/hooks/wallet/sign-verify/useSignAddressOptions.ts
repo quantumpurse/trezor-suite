@@ -80,6 +80,7 @@ export const useSignAddressOptions = (
                 };
             }
             case 'ethereum':
+            case 'ckb':
                 return {
                     [account.path]: {
                         path: account.path,

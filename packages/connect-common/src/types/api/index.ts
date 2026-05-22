@@ -35,7 +35,9 @@ import type { changePin } from './changePin';
 import type { changeWipeCode } from './changeWipeCode';
 import type { cipherKeyValue } from './cipherKeyValue';
 import type { ckbGetAddress } from './ckbGetAddress';
+import type { ckbSignMessage } from './ckbSignMessage';
 import type { ckbSignTransaction } from './ckbSignTransaction';
+import type { ckbVerifyMessage } from './ckbVerifyMessage';
 import type { composeTransaction } from './composeTransaction';
 import type { discoverAccounts } from './discoverAccounts';
 import type { dispose } from './dispose';
@@ -432,11 +434,10 @@ export type TrezorConnectTron = Static<typeof TrezorConnectTron>;
 
 // Nervos CKB operations
 export const TrezorConnectCkb = Type.Object({
-    // Nervos CKB getAddress
     ckbGetAddress: Type.Unsafe<typeof ckbGetAddress>(),
-
-    // Nervos CKB signTransaction
     ckbSignTransaction: Type.Unsafe<typeof ckbSignTransaction>(),
+    ckbSignMessage: Type.Unsafe<typeof ckbSignMessage>(),
+    ckbVerifyMessage: Type.Unsafe<typeof ckbVerifyMessage>(),
 });
 export type TrezorConnectCkb = Static<typeof TrezorConnectCkb>;
 

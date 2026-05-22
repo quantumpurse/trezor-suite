@@ -67,3 +67,28 @@ export const CKBSignedTx = Type.Object({
     signature: Type.String(),
     tx_hash: Type.String(),
 });
+
+export type CKBSignMessage = Static<typeof CKBSignMessage>;
+export const CKBSignMessage = Type.Object({
+    path: DerivationPath,
+    message: Type.String(),
+    network: CKBNetwork,
+    hex: Type.Optional(Type.Boolean()),
+    chunkify: Type.Optional(Type.Boolean()),
+});
+
+export type CKBMessageSignature = Static<typeof CKBMessageSignature>;
+export const CKBMessageSignature = Type.Object({
+    address: Type.String(),
+    signature: Type.String(),
+});
+
+export type CKBVerifyMessage = Static<typeof CKBVerifyMessage>;
+export const CKBVerifyMessage = Type.Object({
+    address: Type.String(),
+    message: Type.String(),
+    signature: Type.String(),
+    network: CKBNetwork,
+    hex: Type.Optional(Type.Boolean()),
+    chunkify: Type.Optional(Type.Boolean()),
+});

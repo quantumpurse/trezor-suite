@@ -136,3 +136,35 @@ export const CKBTxAckCellDep = Type.Object(
     },
     { $id: 'CKBTxAckCellDep' },
 );
+
+export type CKBSignMessage = Static<typeof CKBSignMessage>;
+export const CKBSignMessage = Type.Object(
+    {
+        address_n: Type.Array(Type.Number()),
+        message: Type.String(),
+        network: Type.String(),
+        chunkify: Type.Optional(Type.Boolean()),
+    },
+    { $id: 'CKBSignMessage' },
+);
+
+export type CKBMessageSignature = Static<typeof CKBMessageSignature>;
+export const CKBMessageSignature = Type.Object(
+    {
+        address: Type.String(),
+        signature: Type.String(),
+    },
+    { $id: 'CKBMessageSignature' },
+);
+
+export type CKBVerifyMessage = Static<typeof CKBVerifyMessage>;
+export const CKBVerifyMessage = Type.Object(
+    {
+        address: Type.String(),
+        signature: Type.String(),
+        message: Type.String(),
+        network: Type.String(),
+        chunkify: Type.Optional(Type.Boolean()),
+    },
+    { $id: 'CKBVerifyMessage' },
+);
