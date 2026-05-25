@@ -435,31 +435,10 @@ export const composeCkbTransactionFeeLevelsThunk = createThunk<
 
             const hasAtLeastOneValid = response.some(r => r.type !== 'error');
             if (!hasAtLeastOneValid && !resultLevels.custom) {
-                const lastKnownFee = predefinedLevels[predefinedLevels.length - 1].feePerUnit;
-                let lo = BigInt(feeInfo.minFee);
-                let hi = BigInt(lastKnownFee) - 1n;
-                let bestResult: PrecomposedTransaction | undefined;
-
-                while (lo <= hi) {
-                    const mid = lo + (hi - lo) / 2n;
-                    const midResult = await composeCkbTransaction({
-                        output,
-                        feeLevel: { feePerUnit: mid.toString(), label: 'custom', blocks: -1 },
-                        recipientAddress,
-                        signer,
-                    });
-
-                    if (midResult.type !== 'error') {
-                        bestResult = midResult;
-                        lo = mid + 1n;
-                    } else {
-                        hi = mid - 1n;
-                    }
-                }
-
-                if (bestResult) {
-                    resultLevels.custom = bestResult;
-                }
+                return rejectWithValue({
+                    error: 'fee-levels-compose-failed',
+                    message: 'Not enough CKB balance to cover the transaction.',
+                });
             }
 
             Object.keys(resultLevels).forEach(key => {

@@ -84,7 +84,7 @@ export const getUnavailableCapabilities = (features: Features, coins: CoinInfo[]
             return !capabilities.includes('Capability_Ethereum');
         }
         if (isCkbCoin(info)) {
-            return false;
+            return !capabilities.includes('Capability_CKB');
         }
         // misc
         if ((info.shortcut === 'TRX' || info.shortcut === 'tTRX') && info.type === 'misc') {
