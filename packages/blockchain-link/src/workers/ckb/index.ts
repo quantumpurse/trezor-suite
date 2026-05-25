@@ -5,13 +5,7 @@ import {
     ClientPublicTestnet,
 } from '@ckb-ccc/core';
 
-import type {
-    AccountBalanceHistory,
-    AccountInfo,
-    Response,
-    Transaction,
-    Utxo,
-} from '@trezor/blockchain-link-types';
+import type { AccountInfo, Response, Transaction, Utxo } from '@trezor/blockchain-link-types';
 import { MESSAGES, RESPONSES } from '@trezor/blockchain-link-types/src/constants';
 import { CustomError } from '@trezor/blockchain-link-types/src/constants/errors';
 import type * as MessageTypes from '@trezor/blockchain-link-types/src/messages';
@@ -71,59 +65,6 @@ const createBlockTimestampFetcher = (client: CccClient): BlockTimestampFetcher =
 
         return undefined;
     };
-};
-
-const aggregateTransactions = (
-    transactions: AccountHistoryTransaction[],
-    groupBy = 3600,
-): AccountBalanceHistory[] => {
-    const result: AccountBalanceHistory[] = [];
-    let index = 0;
-
-    while (index < transactions.length) {
-        const time = Math.floor(transactions[index].blockTime / groupBy) * groupBy;
-        let txsInGroup = index;
-        let received = BigInt(0);
-        let sent = BigInt(0);
-        let sentToSelf = BigInt(0);
-
-        while (
-            txsInGroup < transactions.length &&
-            transactions[txsInGroup].blockTime < time + groupBy
-        ) {
-            const {
-                type,
-                amount,
-                fee,
-                details: { totalInput, totalOutput },
-            } = transactions[txsInGroup];
-
-            if (type === 'recv') {
-                received += BigInt(amount);
-            } else if (type === 'sent') {
-                sent += BigInt(amount) + BigInt(fee);
-            } else if (type === 'self') {
-                sentToSelf += BigInt(totalOutput);
-                sent += BigInt(totalInput);
-                received += BigInt(totalOutput);
-            }
-
-            txsInGroup++;
-        }
-
-        result.push({
-            time,
-            txs: txsInGroup - index,
-            received: received.toString(),
-            sent: sent.toString(),
-            sentToSelf: sentToSelf.toString(),
-            rates: {},
-        });
-
-        index = txsInGroup;
-    }
-
-    return result;
 };
 
 const mapTransaction = async ({
@@ -457,35 +398,6 @@ const pushTransaction = async ({ connect, payload }: Request<MessageTypes.PushTr
     } as const;
 };
 
-const getAccountBalanceHistory = async (
-    request: Request<MessageTypes.GetAccountBalanceHistory>,
-) => {
-    const { payload } = request;
-    const client = await request.connect();
-    const address = await Address.fromString(payload.descriptor, client);
-    const lockScript = address.script;
-
-    const { transactions } = await getLockScriptTransactions({
-        lockScript,
-        client,
-        page: undefined,
-        pageSize: Number.MAX_SAFE_INTEGER,
-    });
-
-    const filteredTransactions = transactions
-        .filter(
-            ({ blockTime }) =>
-                (payload.from || 0) <= blockTime &&
-                blockTime <= (payload.to || Number.MAX_SAFE_INTEGER),
-        )
-        .sort((first, second) => first.blockTime - second.blockTime);
-
-    return {
-        type: RESPONSES.GET_ACCOUNT_BALANCE_HISTORY,
-        payload: aggregateTransactions(filteredTransactions, payload.groupBy),
-    } as const;
-};
-
 let blockPollInterval: ReturnType<typeof setInterval> | undefined;
 
 const subscribeBlock = async (ctx: Context) => {
@@ -622,8 +534,6 @@ const onRequest = (request: Request<MessageTypes.Message>) => {
             return getTransaction(request);
         case MESSAGES.GET_TRANSACTION_HEX:
             return getTransactionHex(request);
-        case MESSAGES.GET_ACCOUNT_BALANCE_HISTORY:
-            return getAccountBalanceHistory(request);
         case MESSAGES.PUSH_TRANSACTION:
             return pushTransaction(request);
         case MESSAGES.SUBSCRIBE:
