@@ -14,27 +14,25 @@ export type EnumEnum_CKBTxRequestType = Static<typeof EnumEnum_CKBTxRequestType>
 export const EnumEnum_CKBTxRequestType = Type.Enum(Enum_CKBTxRequestType);
 
 export type CKBTxRequestType = Static<typeof CKBTxRequestType>;
-export const CKBTxRequestType = Type.KeyOfEnum(Enum_CKBTxRequestType, {
-    $id: 'CKBTxRequestType',
-});
-
-export type CKBGetAddress = Static<typeof CKBGetAddress>;
-export const CKBGetAddress = Type.Object(
-    {
-        address_n: Type.Array(Type.Number()),
-        show_display: Type.Optional(Type.Boolean()),
-        network: Type.Optional(Type.String()),
-        chunkify: Type.Optional(Type.Boolean()),
-    },
-    { $id: 'CKBGetAddress' },
-);
+export const CKBTxRequestType = Type.KeyOfEnum(Enum_CKBTxRequestType, { $id: 'CKBTxRequestType' });
 
 export type CKBAddress = Static<typeof CKBAddress>;
 export const CKBAddress = Type.Object(
     {
         address: Type.String(),
+        mac: Type.Optional(Type.String()),
     },
     { $id: 'CKBAddress' },
+);
+
+export type CKBCellDep = Static<typeof CKBCellDep>;
+export const CKBCellDep = Type.Object(
+    {
+        tx_hash: Type.String(),
+        index: Type.Number(),
+        dep_type: Type.Number(),
+    },
+    { $id: 'CKBCellDep' },
 );
 
 export type CKBCellInput = Static<typeof CKBCellInput>;
@@ -62,21 +60,42 @@ export const CKBCellOutput = Type.Object(
     { $id: 'CKBCellOutput' },
 );
 
-export type CKBCellDep = Static<typeof CKBCellDep>;
-export const CKBCellDep = Type.Object(
+export type CKBGetAddress = Static<typeof CKBGetAddress>;
+export const CKBGetAddress = Type.Object(
     {
-        tx_hash: Type.String(),
-        index: Type.Number(),
-        dep_type: Type.Number(),
+        address_n: Type.Array(Type.Number()),
+        show_display: Type.Optional(Type.Boolean()),
+        network: Type.String(),
+        chunkify: Type.Optional(Type.Boolean()),
     },
-    { $id: 'CKBCellDep' },
+    { $id: 'CKBGetAddress' },
+);
+
+export type CKBMessageSignature = Static<typeof CKBMessageSignature>;
+export const CKBMessageSignature = Type.Object(
+    {
+        address: Type.String(),
+        signature: Type.String(),
+    },
+    { $id: 'CKBMessageSignature' },
+);
+
+export type CKBSignMessage = Static<typeof CKBSignMessage>;
+export const CKBSignMessage = Type.Object(
+    {
+        address_n: Type.Array(Type.Number()),
+        message: Type.String(),
+        network: Type.String(),
+        chunkify: Type.Optional(Type.Boolean()),
+    },
+    { $id: 'CKBSignMessage' },
 );
 
 export type CKBSignTx = Static<typeof CKBSignTx>;
 export const CKBSignTx = Type.Object(
     {
         address_n: Type.Array(Type.Number()),
-        network: Type.Optional(Type.String()),
+        network: Type.String(),
         inputs_count: Type.Number(),
         outputs_count: Type.Number(),
         cell_deps_count: Type.Optional(Type.Number()),
@@ -84,6 +103,30 @@ export const CKBSignTx = Type.Object(
         chunkify: Type.Optional(Type.Boolean()),
     },
     { $id: 'CKBSignTx' },
+);
+
+export type CKBTxAckCellDep = Static<typeof CKBTxAckCellDep>;
+export const CKBTxAckCellDep = Type.Object(
+    {
+        cell_dep: CKBCellDep,
+    },
+    { $id: 'CKBTxAckCellDep' },
+);
+
+export type CKBTxAckInput = Static<typeof CKBTxAckInput>;
+export const CKBTxAckInput = Type.Object(
+    {
+        input: CKBCellInput,
+    },
+    { $id: 'CKBTxAckInput' },
+);
+
+export type CKBTxAckOutput = Static<typeof CKBTxAckOutput>;
+export const CKBTxAckOutput = Type.Object(
+    {
+        output: CKBCellOutput,
+    },
+    { $id: 'CKBTxAckOutput' },
 );
 
 export type CKBTxRequestDetails = Static<typeof CKBTxRequestDetails>;
@@ -111,50 +154,6 @@ export const CKBTxRequest = Type.Object(
         serialized: Type.Optional(CKBTxRequestSerialized),
     },
     { $id: 'CKBTxRequest' },
-);
-
-export type CKBTxAckInput = Static<typeof CKBTxAckInput>;
-export const CKBTxAckInput = Type.Object(
-    {
-        input: Type.Optional(CKBCellInput),
-    },
-    { $id: 'CKBTxAckInput' },
-);
-
-export type CKBTxAckOutput = Static<typeof CKBTxAckOutput>;
-export const CKBTxAckOutput = Type.Object(
-    {
-        output: Type.Optional(CKBCellOutput),
-    },
-    { $id: 'CKBTxAckOutput' },
-);
-
-export type CKBTxAckCellDep = Static<typeof CKBTxAckCellDep>;
-export const CKBTxAckCellDep = Type.Object(
-    {
-        cell_dep: Type.Optional(CKBCellDep),
-    },
-    { $id: 'CKBTxAckCellDep' },
-);
-
-export type CKBSignMessage = Static<typeof CKBSignMessage>;
-export const CKBSignMessage = Type.Object(
-    {
-        address_n: Type.Array(Type.Number()),
-        message: Type.String(),
-        network: Type.String(),
-        chunkify: Type.Optional(Type.Boolean()),
-    },
-    { $id: 'CKBSignMessage' },
-);
-
-export type CKBMessageSignature = Static<typeof CKBMessageSignature>;
-export const CKBMessageSignature = Type.Object(
-    {
-        address: Type.String(),
-        signature: Type.String(),
-    },
-    { $id: 'CKBMessageSignature' },
 );
 
 export type CKBVerifyMessage = Static<typeof CKBVerifyMessage>;
