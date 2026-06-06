@@ -53,10 +53,28 @@ export const CKBTransaction = Type.Object({
     outputsData: Type.Array(Type.String()),
 });
 
+export type CKBWitnessArgs = Static<typeof CKBWitnessArgs>;
+export const CKBWitnessArgs = Type.Object({
+    lockSize: Type.Optional(Type.Number()),
+    inputType: Type.Optional(Type.String()),
+    outputType: Type.Optional(Type.String()),
+});
+
+export type CKBSignWitness = Static<typeof CKBSignWitness>;
+export const CKBSignWitness = Type.Object({
+    // Signing witness: `witnessArgs` (device blanks its lock). Others: `raw`.
+    witnessArgs: Type.Optional(CKBWitnessArgs),
+    raw: Type.Optional(Type.String()),
+});
+
 export type CKBSignTransaction = Static<typeof CKBSignTransaction>;
 export const CKBSignTransaction = Type.Object({
     path: DerivationPath,
     transaction: CKBTransaction,
+    // Full on-chain witness vector (required at runtime).
+    witnesses: Type.Optional(Type.Array(CKBSignWitness)),
+    // Inputs of the lock-script group to sign; first index holds the signature (required).
+    signGroupInputIndices: Type.Optional(Type.Array(Type.Number())),
     network: CKBNetwork,
     fee: Type.Optional(Type.Uint()),
     chunkify: Type.Optional(Type.Boolean()),

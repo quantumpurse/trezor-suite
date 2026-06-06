@@ -8,6 +8,7 @@ export enum Enum_CKBTxRequestType {
     TXOUTPUT = 1,
     TXCELLDEP = 2,
     TXFINISHED = 3,
+    TXWITNESS = 4,
 }
 
 export type EnumEnum_CKBTxRequestType = Static<typeof EnumEnum_CKBTxRequestType>;
@@ -101,6 +102,8 @@ export const CKBSignTx = Type.Object(
         cell_deps_count: Type.Optional(Type.Number()),
         fee: Type.Optional(Type.Uint()),
         chunkify: Type.Optional(Type.Boolean()),
+        witnesses_count: Type.Optional(Type.Number()),
+        sign_group_input_indices: Type.Array(Type.Number()),
     },
     { $id: 'CKBSignTx' },
 );
@@ -127,6 +130,25 @@ export const CKBTxAckOutput = Type.Object(
         output: CKBCellOutput,
     },
     { $id: 'CKBTxAckOutput' },
+);
+
+export type CKBWitnessArgs = Static<typeof CKBWitnessArgs>;
+export const CKBWitnessArgs = Type.Object(
+    {
+        lock_size: Type.Optional(Type.Number()),
+        input_type: Type.Optional(Type.String()),
+        output_type: Type.Optional(Type.String()),
+    },
+    { $id: 'CKBWitnessArgs' },
+);
+
+export type CKBTxAckWitness = Static<typeof CKBTxAckWitness>;
+export const CKBTxAckWitness = Type.Object(
+    {
+        witness_args: Type.Optional(CKBWitnessArgs),
+        raw: Type.Optional(Type.String()),
+    },
+    { $id: 'CKBTxAckWitness' },
 );
 
 export type CKBTxRequestDetails = Static<typeof CKBTxRequestDetails>;

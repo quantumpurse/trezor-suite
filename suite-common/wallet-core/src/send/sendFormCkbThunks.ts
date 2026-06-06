@@ -28,6 +28,9 @@ import { selectAddressDisplayType } from '../settings/walletSettingsReducer';
 type CkbClient = ccc.ClientPublicMainnet | ccc.ClientPublicTestnet;
 type TrezorCkbDevice = SignTransactionThunkArguments['device'];
 
+// secp256k1 recoverable signature length (the WitnessArgs lock field size).
+const CKB_SIGNATURE_PLACEHOLDER_SIZE = 65;
+
 class TrezorCkbSignError extends Error {
     constructor(
         message: string,
@@ -187,6 +190,23 @@ class TrezorCkbSigner extends ccc.Signer {
             return tx;
         }
 
+        // Forward the witness vector ccc already built so the device hashes the
+        // exact sighash_all preimage of the broadcast transaction.
+        const signingWitnessArgs = tx.getWitnessArgsAt(signHashInfo.position);
+        const witnesses = tx.witnesses.map((raw, index) =>
+            index === signHashInfo.position
+                ? {
+                      witnessArgs: {
+                          lockSize: CKB_SIGNATURE_PLACEHOLDER_SIZE,
+                          inputType: signingWitnessArgs?.inputType,
+                          outputType: signingWitnessArgs?.outputType,
+                      },
+                  }
+                : { raw },
+        );
+        // Suite composes single-group transactions: every input is in the group.
+        const signGroupInputIndices = tx.inputs.map((_, index) => index);
+
         const response = await TrezorConnect.ckbSignTransaction({
             device: {
                 path: this.device.path,
@@ -196,6 +216,8 @@ class TrezorCkbSigner extends ccc.Signer {
             },
             path: this.account.path,
             transaction: mapCccTransactionToTrezor(tx),
+            witnesses,
+            signGroupInputIndices,
             network: isTestnet(this.account.symbol) ? 'Testnet' : 'Mainnet',
             fee: (await tx.getFee(this.client)).toString(),
             chunkify: this.chunkify,

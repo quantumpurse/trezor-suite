@@ -21,6 +21,9 @@ const DEP_TYPE_MAP: Record<string, number> = {
     dep_group: 1,
 };
 
+// secp256k1 recoverable signature length (the WitnessArgs lock field size).
+const SIGNATURE_PLACEHOLDER_SIZE = 65;
+
 // Strip '0x' prefix from hex strings for protobuf bytes fields.
 // Buffer.from('0xABCD', 'hex') silently returns empty buffer,
 // so the prefix MUST be removed before protobuf encoding.
@@ -36,6 +39,7 @@ const processCkbTxRequest = async (
     inputs: PROTO.CKBCellInput[],
     outputs: PROTO.CKBCellOutput[],
     cellDeps: PROTO.CKBCellDep[],
+    witnesses: PROTO.CKBTxAckWitness[],
 ): Promise<{ signature: string; tx_hash: string }> => {
     const { request_type, details, serialized } = txRequest;
 
@@ -68,7 +72,7 @@ const processCkbTxRequest = async (
             input,
         });
 
-        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps);
+        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps, witnesses);
     }
 
     if (request_type === 'TXOUTPUT') {
@@ -84,7 +88,7 @@ const processCkbTxRequest = async (
             output,
         });
 
-        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps);
+        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps, witnesses);
     }
 
     if (request_type === 'TXCELLDEP') {
@@ -100,7 +104,21 @@ const processCkbTxRequest = async (
             cell_dep: cellDep,
         });
 
-        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps);
+        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps, witnesses);
+    }
+
+    if (request_type === 'TXWITNESS') {
+        const witness = witnesses[requestIndex];
+        if (!witness) {
+            throw ERRORS.TypedError(
+                'Runtime',
+                `CKB signing: Requested witness at index ${requestIndex}` +
+                    ` but only ${witnesses.length} witnesses available`,
+            );
+        }
+        const { message } = await typedCall('CKBTxAckWitness', 'CKBTxRequest', witness);
+
+        return processCkbTxRequest(typedCall, message, inputs, outputs, cellDeps, witnesses);
     }
 
     throw ERRORS.TypedError('Runtime', `CKB signing: Unknown request_type ${request_type}`);
@@ -113,6 +131,7 @@ export default class CkbSignTransaction extends AbstractMethod<
     inputs: PROTO.CKBCellInput[] = [];
     outputs: PROTO.CKBCellOutput[] = [];
     cellDeps: PROTO.CKBCellDep[] = [];
+    witnesses: PROTO.CKBTxAckWitness[] = [];
 
     constructor(message: MethodMessage<'ckbSignTransaction'>) {
         const { payload } = message;
@@ -120,7 +139,14 @@ export default class CkbSignTransaction extends AbstractMethod<
         Assert(CKBSignTransactionSchema, payload);
 
         const path = validatePath(payload.path, 3);
-        const { transaction, network, fee, chunkify } = payload;
+        const {
+            transaction,
+            network,
+            fee,
+            chunkify,
+            witnesses: payloadWitnesses,
+            signGroupInputIndices: payloadGroupIndices,
+        } = payload;
 
         // Extend 3-segment account path to 5-segment address path (append /0/0)
         const fullPath = path.length === 3 ? [...path, 0, 0] : path;
@@ -183,12 +209,49 @@ export default class CkbSignTransaction extends AbstractMethod<
             dep_type: DEP_TYPE_MAP[dep.depType] ?? 0,
         }));
 
+        // The host supplies the real on-chain witness vector; the device never
+        // guesses a layout, so reject the request if it is missing.
+        if (!payloadWitnesses || payloadWitnesses.length === 0) {
+            throw ERRORS.TypedError(
+                'Method_InvalidParameter',
+                'CKB signing requires the transaction witness vector.',
+            );
+        }
+
+        // Signing witness goes structured (device blanks its lock); others raw.
+        const witnesses: PROTO.CKBTxAckWitness[] = payloadWitnesses.map(witness =>
+            witness.witnessArgs
+                ? {
+                      witness_args: {
+                          lock_size: witness.witnessArgs.lockSize ?? SIGNATURE_PLACEHOLDER_SIZE,
+                          input_type:
+                              witness.witnessArgs.inputType !== undefined
+                                  ? stripHex(witness.witnessArgs.inputType)
+                                  : undefined,
+                          output_type:
+                              witness.witnessArgs.outputType !== undefined
+                                  ? stripHex(witness.witnessArgs.outputType)
+                                  : undefined,
+                      },
+                  }
+                : { raw: witness.raw !== undefined ? stripHex(witness.raw) : '' },
+        );
+        if (!payloadGroupIndices || payloadGroupIndices.length === 0) {
+            throw ERRORS.TypedError(
+                'Method_InvalidParameter',
+                'CKB signing requires sign_group_input_indices.',
+            );
+        }
+        const signGroupInputIndices = payloadGroupIndices;
+
         const params: CKBSignTxInitialParams = {
             address_n: fullPath,
             network,
             inputs_count: inputs.length,
             outputs_count: outputs.length,
             cell_deps_count: cellDeps.length,
+            witnesses_count: witnesses.length,
+            sign_group_input_indices: signGroupInputIndices,
             fee: fee ?? 0,
             chunkify: typeof chunkify === 'boolean' ? chunkify : false,
         };
@@ -198,6 +261,7 @@ export default class CkbSignTransaction extends AbstractMethod<
         this.inputs = inputs;
         this.outputs = outputs;
         this.cellDeps = cellDeps;
+        this.witnesses = witnesses;
         this.requiredFirmwareCoins = [getCoinInfo(network === 'Testnet' ? 'tckb' : 'ckb')];
     }
 
@@ -215,6 +279,13 @@ export default class CkbSignTransaction extends AbstractMethod<
 
         const { message } = await typedCall('CKBSignTx', 'CKBTxRequest', this.params);
 
-        return processCkbTxRequest(typedCall, message, this.inputs, this.outputs, this.cellDeps);
+        return processCkbTxRequest(
+            typedCall,
+            message,
+            this.inputs,
+            this.outputs,
+            this.cellDeps,
+            this.witnesses,
+        );
     }
 }

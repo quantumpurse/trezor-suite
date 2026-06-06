@@ -71,6 +71,7 @@ import {
     CKBTxAckCellDep,
     CKBTxAckInput,
     CKBTxAckOutput,
+    CKBTxAckWitness,
     CKBTxRequest,
     CKBVerifyMessage,
 } from './messages-ckb';
@@ -420,6 +421,7 @@ export const MessageType = Type.Object(
         CKBTxAckInput,
         CKBTxAckOutput,
         CKBTxAckCellDep,
+        CKBTxAckWitness,
         CipherKeyValue,
         CipheredKeyValue,
         SignIdentity,
@@ -680,6 +682,7 @@ export type WireInMessage =
     | 'CKBTxAckInput'
     | 'CKBTxAckOutput'
     | 'CKBTxAckCellDep'
+    | 'CKBTxAckWitness'
     | 'CipherKeyValue'
     | 'SignIdentity'
     | 'GetECDHSessionKey'
