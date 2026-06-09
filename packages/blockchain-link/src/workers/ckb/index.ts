@@ -5,7 +5,13 @@ import {
     ClientPublicTestnet,
 } from '@ckb-ccc/core';
 
-import type { AccountInfo, Response, Transaction, Utxo } from '@trezor/blockchain-link-types';
+import type {
+    AccountInfo,
+    CkbRawTransaction,
+    Response,
+    Transaction,
+    Utxo,
+} from '@trezor/blockchain-link-types';
 import { MESSAGES, RESPONSES } from '@trezor/blockchain-link-types/src/constants';
 import { CustomError } from '@trezor/blockchain-link-types/src/constants/errors';
 import type * as MessageTypes from '@trezor/blockchain-link-types/src/messages';
@@ -384,8 +390,57 @@ const getTransaction = async ({ connect, payload }: Request<MessageTypes.GetTran
     } as const;
 };
 
-const getTransactionHex = (_request: Request<MessageTypes.GetTransactionHex>) => {
-    throw new CustomError('worker_runtime', 'getTransactionHex is not supported by the CKB worker');
+// Reuses the generic getTransactionHex message to serve a previous transaction in
+// its CKB-native shape; the normalized getTransaction response drops
+// capacity/lock/cellDeps that connect's signing needs. Decoding CKB's molecule
+// serialization in connect would need a molecule parser, so the "hex" payload is
+// the native tx as JSON instead. CCC's depType ("depGroup") is mapped to the device
+// wording ("dep_group"); 64-bit values are stringified for serialization.
+const getTransactionHex = async ({ connect, payload }: Request<MessageTypes.GetTransactionHex>) => {
+    const client = await connect();
+    const fetchTx = createTransactionFetcher(client);
+    const txResponse = await fetchTx(payload);
+
+    if (!txResponse) {
+        throw new CustomError('Transaction', 'Transaction not found');
+    }
+
+    const { transaction: tx } = txResponse;
+    const mapScript = (script: CkbRawTransaction['outputs'][number]['lock']) => ({
+        codeHash: script.codeHash,
+        hashType: script.hashType,
+        args: script.args,
+    });
+
+    const raw: CkbRawTransaction = {
+        version: Number(tx.version),
+        cellDeps: tx.cellDeps.map(dep => ({
+            outPoint: {
+                txHash: dep.outPoint.txHash,
+                index: Number(dep.outPoint.index),
+            },
+            depType: dep.depType === 'depGroup' ? 'dep_group' : 'code',
+        })),
+        headerDeps: tx.headerDeps,
+        inputs: tx.inputs.map(input => ({
+            since: String(input.since),
+            previousOutput: {
+                txHash: input.previousOutput.txHash,
+                index: Number(input.previousOutput.index),
+            },
+        })),
+        outputs: tx.outputs.map(output => ({
+            capacity: String(output.capacity),
+            lock: mapScript(output.lock),
+            type: output.type ? mapScript(output.type) : undefined,
+        })),
+        outputsData: tx.outputsData,
+    };
+
+    return {
+        type: RESPONSES.GET_TRANSACTION_HEX,
+        payload: JSON.stringify(raw),
+    } as const;
 };
 
 const pushTransaction = async ({ connect, payload }: Request<MessageTypes.PushTransaction>) => {

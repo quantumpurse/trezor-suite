@@ -76,8 +76,12 @@ export const CKBSignTransaction = Type.Object({
     // Inputs of the lock-script group to sign; first index holds the signature (required).
     signGroupInputIndices: Type.Optional(Type.Array(Type.Number())),
     network: CKBNetwork,
-    fee: Type.Optional(Type.Uint()),
     chunkify: Type.Optional(Type.Boolean()),
+    // Previous transactions keyed by their hash (with or without 0x prefix). The
+    // device re-hashes each to verify the spent input capacities and compute the
+    // fee trustlessly. Optional: any input whose previous tx is not supplied here
+    // is fetched from the backend during signing.
+    prevTxs: Type.Optional(Type.Record(Type.String(), CKBTransaction)),
 });
 
 export type CKBSignedTx = Static<typeof CKBSignedTx>;

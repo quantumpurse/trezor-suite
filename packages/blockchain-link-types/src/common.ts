@@ -415,3 +415,31 @@ export type TokenDetailByMint = {
         rating?: number;
     };
 };
+
+// CKB native script/cell types. These mirror the molecule RawTransaction so a
+// caller (connect's CKB signing) can rebuild a previous transaction for the
+// device to re-hash. 64-bit values (capacity, since) are strings; indices are numbers.
+export interface CkbScript {
+    codeHash: string;
+    hashType: 'data' | 'type' | 'data1' | 'data2';
+    args: string;
+}
+
+export interface CkbRawTransaction {
+    version: number;
+    cellDeps: {
+        outPoint: { txHash: string; index: number };
+        depType: 'code' | 'dep_group';
+    }[];
+    headerDeps: string[];
+    inputs: {
+        since: string;
+        previousOutput: { txHash: string; index: number };
+    }[];
+    outputs: {
+        capacity: string;
+        lock: CkbScript;
+        type?: CkbScript;
+    }[];
+    outputsData: string[];
+}
