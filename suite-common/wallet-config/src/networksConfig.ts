@@ -723,7 +723,73 @@ export const networks = {
             [DeviceModelInternal.T3W1]: '2.6.1',
         },
         backendTypes: ['ckb'],
-        accountTypes: {},
+        // SPHINCS+ post-quantum: 12 account types, one per FIPS 205 variant.
+        // bip43Path is a placeholder — the real derivation is HKDF over the
+        // device mnemonic keyed by account_index and variant ID, done inside
+        // the firmware. The path is only here so the generic path-based UI
+        // helpers keep working.
+        accountTypes: {
+            sphincsPlus128Sha2S: {
+                accountType: 'sphincsPlus128Sha2S',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus128Sha2F: {
+                accountType: 'sphincsPlus128Sha2F',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus128ShakeS: {
+                accountType: 'sphincsPlus128ShakeS',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus128ShakeF: {
+                accountType: 'sphincsPlus128ShakeF',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus192Sha2S: {
+                accountType: 'sphincsPlus192Sha2S',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus192Sha2F: {
+                accountType: 'sphincsPlus192Sha2F',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus192ShakeS: {
+                accountType: 'sphincsPlus192ShakeS',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus192ShakeF: {
+                accountType: 'sphincsPlus192ShakeF',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus256Sha2S: {
+                accountType: 'sphincsPlus256Sha2S',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus256Sha2F: {
+                accountType: 'sphincsPlus256Sha2F',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus256ShakeS: {
+                accountType: 'sphincsPlus256ShakeS',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus256ShakeF: {
+                accountType: 'sphincsPlus256ShakeF',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+        },
         coingeckoId: 'nervos-network',
         tradeCryptoId: undefined,
         yieldXyzId: null,
@@ -742,7 +808,68 @@ export const networks = {
             [DeviceModelInternal.T3W1]: '2.6.1',
         },
         backendTypes: ['ckb'],
-        accountTypes: {},
+        accountTypes: {
+            sphincsPlus128Sha2S: {
+                accountType: 'sphincsPlus128Sha2S',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus128Sha2F: {
+                accountType: 'sphincsPlus128Sha2F',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus128ShakeS: {
+                accountType: 'sphincsPlus128ShakeS',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus128ShakeF: {
+                accountType: 'sphincsPlus128ShakeF',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus192Sha2S: {
+                accountType: 'sphincsPlus192Sha2S',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus192Sha2F: {
+                accountType: 'sphincsPlus192Sha2F',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus192ShakeS: {
+                accountType: 'sphincsPlus192ShakeS',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus192ShakeF: {
+                accountType: 'sphincsPlus192ShakeF',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus256Sha2S: {
+                accountType: 'sphincsPlus256Sha2S',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus256Sha2F: {
+                accountType: 'sphincsPlus256Sha2F',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus256ShakeS: {
+                accountType: 'sphincsPlus256ShakeS',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+            sphincsPlus256ShakeF: {
+                accountType: 'sphincsPlus256ShakeF',
+                bip43Path: "m/44'/309'/i'",
+                features: ['graph', 'sign-verify'],
+            },
+        },
         coingeckoId: undefined,
         tradeCryptoId: undefined,
         yieldXyzId: null,

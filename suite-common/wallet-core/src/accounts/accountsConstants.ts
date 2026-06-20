@@ -24,5 +24,19 @@ export const formattedAccountTypeMap: Partial<
     },
     ckb: {
         normal: 'ECDSA',
+        // All 12 SPHINCS+ variants share one display label — the variant
+        // detail is surfaced in AccountTypeSelect's secondary text.
+        sphincsPlus128Sha2S: 'SPHINCS+',
+        sphincsPlus128Sha2F: 'SPHINCS+',
+        sphincsPlus128ShakeS: 'SPHINCS+',
+        sphincsPlus128ShakeF: 'SPHINCS+',
+        sphincsPlus192Sha2S: 'SPHINCS+',
+        sphincsPlus192Sha2F: 'SPHINCS+',
+        sphincsPlus192ShakeS: 'SPHINCS+',
+        sphincsPlus192ShakeF: 'SPHINCS+',
+        sphincsPlus256Sha2S: 'SPHINCS+',
+        sphincsPlus256Sha2F: 'SPHINCS+',
+        sphincsPlus256ShakeS: 'SPHINCS+',
+        sphincsPlus256ShakeF: 'SPHINCS+',
     },
 };

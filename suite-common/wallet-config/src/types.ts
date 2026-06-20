@@ -51,7 +51,34 @@ export type NetworkType =
     | 'tron';
 
 type UtilityAccountType = 'normal' | 'imported' | 'placeholder'; // reserved accountTypes to stand in for a real accountType
-type RealAccountType = 'legacy' | 'segwit' | 'coinjoin' | 'taproot' | 'ledger' | 'ecdsa';
+// Each CKB SPHINCS+ variant gets its own account type so the standard
+// `AccountTypeSelect` dropdown can render them like Bitcoin's
+// native/segwit/taproot/legacy options — no variant sub-picker needed.
+// The full variant catalogue (variant ID, pubkey bytes, signature bytes) is in
+// `@suite-common/wallet-utils/ckbSphincsPlus.ts`; this is the string union
+// the rest of the codebase uses.
+type SphincsPlusAccountType =
+    | 'sphincsPlus128Sha2S'
+    | 'sphincsPlus128Sha2F'
+    | 'sphincsPlus128ShakeS'
+    | 'sphincsPlus128ShakeF'
+    | 'sphincsPlus192Sha2S'
+    | 'sphincsPlus192Sha2F'
+    | 'sphincsPlus192ShakeS'
+    | 'sphincsPlus192ShakeF'
+    | 'sphincsPlus256Sha2S'
+    | 'sphincsPlus256Sha2F'
+    | 'sphincsPlus256ShakeS'
+    | 'sphincsPlus256ShakeF';
+
+type RealAccountType =
+    | 'legacy'
+    | 'segwit'
+    | 'coinjoin'
+    | 'taproot'
+    | 'ledger'
+    | 'ecdsa'
+    | SphincsPlusAccountType;
 export type AccountType = UtilityAccountType | RealAccountType;
 
 export const TREZOR_CONNECT_BACKENDS = [
