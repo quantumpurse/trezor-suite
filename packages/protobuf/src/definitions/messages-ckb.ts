@@ -14,6 +14,7 @@ export enum Enum_CKBTxRequestType {
     TXPREVOUTPUT = 7,
     TXPREVCELLDEP = 8,
     TXHEADER = 9,
+    TXSIGCHUNK = 10,
 }
 
 export type EnumEnum_CKBTxRequestType = Static<typeof EnumEnum_CKBTxRequestType>;
@@ -133,6 +134,81 @@ export const CKBSignTx = Type.Object(
     { $id: 'CKBSignTx' },
 );
 
+export type CKBSphincsPlusAddress = Static<typeof CKBSphincsPlusAddress>;
+export const CKBSphincsPlusAddress = Type.Object(
+    {
+        address: Type.String(),
+        lock_args: Type.String(),
+        public_key: Type.String(),
+        variant: Type.Number(),
+    },
+    { $id: 'CKBSphincsPlusAddress' },
+);
+
+export type CKBSphincsPlusGetAddress = Static<typeof CKBSphincsPlusGetAddress>;
+export const CKBSphincsPlusGetAddress = Type.Object(
+    {
+        account_index: Type.Optional(Type.Number()),
+        variant: Type.Optional(Type.Number()),
+        network: Type.String(),
+        show_display: Type.Optional(Type.Boolean()),
+        chunkify: Type.Optional(Type.Boolean()),
+    },
+    { $id: 'CKBSphincsPlusGetAddress' },
+);
+
+export type CKBSphincsPlusMessageSignature = Static<typeof CKBSphincsPlusMessageSignature>;
+export const CKBSphincsPlusMessageSignature = Type.Object(
+    {
+        address: Type.String(),
+        public_key: Type.String(),
+        variant: Type.Number(),
+    },
+    { $id: 'CKBSphincsPlusMessageSignature' },
+);
+
+export type CKBSphincsPlusSignMessage = Static<typeof CKBSphincsPlusSignMessage>;
+export const CKBSphincsPlusSignMessage = Type.Object(
+    {
+        account_index: Type.Optional(Type.Number()),
+        variant: Type.Optional(Type.Number()),
+        message: Type.String(),
+        network: Type.String(),
+        chunkify: Type.Optional(Type.Boolean()),
+    },
+    { $id: 'CKBSphincsPlusSignMessage' },
+);
+
+export type CKBSphincsPlusSignTx = Static<typeof CKBSphincsPlusSignTx>;
+export const CKBSphincsPlusSignTx = Type.Object(
+    {
+        account_index: Type.Optional(Type.Number()),
+        variant: Type.Optional(Type.Number()),
+        network: Type.String(),
+        inputs_count: Type.Number(),
+        outputs_count: Type.Number(),
+        cell_deps_count: Type.Optional(Type.Number()),
+        witnesses_count: Type.Optional(Type.Number()),
+        sign_group_input_indices: Type.Array(Type.Number()),
+        chunkify: Type.Optional(Type.Boolean()),
+    },
+    { $id: 'CKBSphincsPlusSignTx' },
+);
+
+export type CKBSphincsPlusVerifyMessage = Static<typeof CKBSphincsPlusVerifyMessage>;
+export const CKBSphincsPlusVerifyMessage = Type.Object(
+    {
+        address: Type.String(),
+        public_key: Type.String(),
+        message: Type.String(),
+        variant: Type.Number(),
+        network: Type.String(),
+        signature_total_size: Type.Number(),
+        chunkify: Type.Optional(Type.Boolean()),
+    },
+    { $id: 'CKBSphincsPlusVerifyMessage' },
+);
+
 export type CKBTxAckCellDep = Static<typeof CKBTxAckCellDep>;
 export const CKBTxAckCellDep = Type.Object(
     {
@@ -177,6 +253,14 @@ export const CKBTxAckPrevMeta = Type.Object(
     { $id: 'CKBTxAckPrevMeta' },
 );
 
+export type CKBTxAckSigChunk = Static<typeof CKBTxAckSigChunk>;
+export const CKBTxAckSigChunk = Type.Object(
+    {
+        signature: Type.Optional(Type.String()),
+    },
+    { $id: 'CKBTxAckSigChunk' },
+);
+
 export type CKBWitnessArgs = Static<typeof CKBWitnessArgs>;
 export const CKBWitnessArgs = Type.Object(
     {
@@ -201,6 +285,8 @@ export const CKBTxRequestDetails = Type.Object(
     {
         request_index: Type.Optional(Type.Number()),
         tx_hash: Type.Optional(Type.String()),
+        signature_offset: Type.Optional(Type.Number()),
+        signature_total_size: Type.Optional(Type.Number()),
     },
     { $id: 'CKBTxRequestDetails' },
 );

@@ -68,11 +68,18 @@ import {
     CKBMessageSignature,
     CKBSignMessage,
     CKBSignTx,
+    CKBSphincsPlusAddress,
+    CKBSphincsPlusGetAddress,
+    CKBSphincsPlusMessageSignature,
+    CKBSphincsPlusSignMessage,
+    CKBSphincsPlusSignTx,
+    CKBSphincsPlusVerifyMessage,
     CKBTxAckCellDep,
     CKBTxAckHeader,
     CKBTxAckInput,
     CKBTxAckOutput,
     CKBTxAckPrevMeta,
+    CKBTxAckSigChunk,
     CKBTxAckWitness,
     CKBTxRequest,
     CKBVerifyMessage,
@@ -415,6 +422,12 @@ export const MessageType = Type.Object(
         CardanoMessageSignature,
         CKBGetAddress,
         CKBAddress,
+        CKBSphincsPlusGetAddress,
+        CKBSphincsPlusAddress,
+        CKBSphincsPlusSignTx,
+        CKBSphincsPlusSignMessage,
+        CKBSphincsPlusMessageSignature,
+        CKBSphincsPlusVerifyMessage,
         CKBSignMessage,
         CKBMessageSignature,
         CKBVerifyMessage,
@@ -426,6 +439,7 @@ export const MessageType = Type.Object(
         CKBTxAckPrevMeta,
         CKBTxAckHeader,
         CKBTxAckWitness,
+        CKBTxAckSigChunk,
         CipherKeyValue,
         CipheredKeyValue,
         SignIdentity,
@@ -680,6 +694,10 @@ export type WireInMessage =
     | 'CardanoSignMessageInit'
     | 'CardanoMessageDataResponse'
     | 'CKBGetAddress'
+    | 'CKBSphincsPlusGetAddress'
+    | 'CKBSphincsPlusSignTx'
+    | 'CKBSphincsPlusSignMessage'
+    | 'CKBSphincsPlusVerifyMessage'
     | 'CKBSignMessage'
     | 'CKBVerifyMessage'
     | 'CKBSignTx'
@@ -689,6 +707,7 @@ export type WireInMessage =
     | 'CKBTxAckPrevMeta'
     | 'CKBTxAckHeader'
     | 'CKBTxAckWitness'
+    | 'CKBTxAckSigChunk'
     | 'CipherKeyValue'
     | 'SignIdentity'
     | 'GetECDHSessionKey'
@@ -821,6 +840,8 @@ export type WireOutMessage =
     | 'CardanoMessageDataRequest'
     | 'CardanoMessageSignature'
     | 'CKBAddress'
+    | 'CKBSphincsPlusAddress'
+    | 'CKBSphincsPlusMessageSignature'
     | 'CKBMessageSignature'
     | 'CKBTxRequest'
     | 'CipheredKeyValue'
