@@ -8,11 +8,56 @@ import {
     type NetworkSymbol,
     type NetworkType,
 } from '@suite-common/wallet-config';
-import { getAccountTypeName, getAccountTypeTech } from '@suite-common/wallet-utils';
-import { Column, Paragraph, Select } from '@trezor/components';
+import {
+    getAccountTypeName,
+    getAccountTypeTech,
+    getSphincsShortName,
+    sphincsLevelFromAccountType,
+} from '@suite-common/wallet-utils';
+import { Column, Paragraph, Select, Text } from '@trezor/components';
 import { spacings, typography } from '@trezor/theme';
 
 import { AccountTypeDescription } from './AccountTypeDescription';
+
+const WORDS_BY_LEVEL: Record<number, number> = {
+    128: 36,
+    192: 54,
+    256: 72,
+};
+
+type FlatOption = {
+    value: NetworkAccount;
+    label: string;
+};
+
+type GroupedOption = {
+    label: string;
+    options: FlatOption[];
+};
+
+const buildCkbOptions = (accountTypes: NetworkAccount[]): Array<FlatOption | GroupedOption> => {
+    const flat: FlatOption[] = [];
+    const buckets: Record<128 | 192 | 256, FlatOption[]> = { 128: [], 192: [], 256: [] };
+
+    for (const a of accountTypes) {
+        const level = sphincsLevelFromAccountType(a.accountType);
+        const option: FlatOption = { value: a, label: a.accountType };
+        if (level === undefined) {
+            flat.push(option);
+        } else {
+            buckets[level].push(option);
+        }
+    }
+
+    const groups: GroupedOption[] = ([128, 192, 256] as const)
+        .filter(level => buckets[level].length > 0)
+        .map(level => ({
+            label: `${level}-bit | ${WORDS_BY_LEVEL[level]}-word mnemonic`,
+            options: buckets[level],
+        }));
+
+    return [...flat, ...groups];
+};
 
 const LabelWrapper = styled.div`
     display: flex;
@@ -42,17 +87,22 @@ const AccountTypeSelectComponent = ({
     symbol,
     onSelectAccountType,
 }: AccountTypeSelectProps) => {
-    const buildAccountTypeOption = (account: NetworkAccount) =>
-        ({
-            value: account,
-            label: account.accountType,
-        }) as const;
-    type Option = ReturnType<typeof buildAccountTypeOption>;
+    const buildAccountTypeOption = (account: NetworkAccount): FlatOption => ({
+        value: account,
+        label: account.accountType,
+    });
 
-    const formatLabel = (option: Option) => {
+    const formatLabel = (option: FlatOption) => {
+        const { accountType } = option.value;
+
+        const sphincsName = getSphincsShortName(accountType);
+        if (sphincsName) {
+            return <Text typographyStyle="body-md">{sphincsName}</Text>;
+        }
+
         const accountTypeName = getAccountTypeName({
             path: option.value.bip43Path,
-            accountType: option.value.accountType,
+            accountType,
             networkType,
         });
 
@@ -60,13 +110,25 @@ const AccountTypeSelectComponent = ({
             <LabelWrapper>
                 {accountTypeName && <Translation id={accountTypeName} />}
                 <TypeInfo>
-                    <Translation id={getAccountTypeTech(option.value.bip43Path, networkType)} />
+                    <Translation
+                        id={getAccountTypeTech(option.value.bip43Path, networkType, accountType)}
+                    />
                 </TypeInfo>
             </LabelWrapper>
         );
     };
 
-    const options = accountTypes.map(buildAccountTypeOption);
+    const formatGroupLabel = (group: { label?: string }) => (
+        <Text typographyStyle="body-xs" intent="neutral" priority="secondary">
+            {group.label}
+        </Text>
+    );
+
+    const options =
+        networkType === 'ckb'
+            ? buildCkbOptions(accountTypes)
+            : accountTypes.map(buildAccountTypeOption);
+
     // the default, 'normal' account type is expected to be the first one
     const defaultAccountType = accountTypes[0];
     const value = buildAccountTypeOption(selectedAccountType ?? defaultAccountType);
@@ -83,7 +145,8 @@ const AccountTypeSelectComponent = ({
                 value={value}
                 options={options}
                 formatOptionLabel={formatLabel}
-                onChange={(option: Option) => onSelectAccountType(option.value)}
+                formatGroupLabel={formatGroupLabel}
+                onChange={(option: FlatOption) => onSelectAccountType(option.value)}
                 openMenuOnFocus={false}
             />
             <Paragraph intent="neutral" priority="secondary" typographyStyle="body-sm">

@@ -2676,6 +2676,11 @@ export const messages = defineMessages({
         id: 'TR_ECDSA_ACCOUNTS',
     },
 
+    TR_SPHINCS_PLUS_ACCOUNTS: {
+        defaultMessage: 'SPHINCS+ accounts',
+        id: 'TR_SPHINCS_PLUS_ACCOUNTS',
+    },
+
     TR_ACCOUNT_TYPE_LEGACY: {
         defaultMessage: 'Legacy',
         id: 'TR_ACCOUNT_TYPE_LEGACY',
@@ -2728,6 +2733,68 @@ export const messages = defineMessages({
         defaultMessage: 'BIP44, secp256k1, Bech32m',
         id: 'TR_ACCOUNT_TYPE_ECDSA_TECH',
         dynamic: true,
+    },
+
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS: {
+        defaultMessage: 'Quantum-Safe (SPHINCS+)',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS',
+        dynamic: true,
+    },
+
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_DESC: {
+        defaultMessage:
+            'Post-quantum secure CKB account using SPHINCS+ hash-based signatures. Resistant to attacks from quantum computers.',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_DESC',
+        dynamic: true,
+    },
+
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHA2_S_TECH: {
+        defaultMessage: '128-bit · SHA-2 · Small',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHA2_S_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHA2_F_TECH: {
+        defaultMessage: '128-bit · SHA-2 · Fast',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHA2_F_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHAKE_S_TECH: {
+        defaultMessage: '128-bit · SHAKE · Small',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHAKE_S_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHAKE_F_TECH: {
+        defaultMessage: '128-bit · SHAKE · Fast',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHAKE_F_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHA2_S_TECH: {
+        defaultMessage: '192-bit · SHA-2 · Small',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHA2_S_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHA2_F_TECH: {
+        defaultMessage: '192-bit · SHA-2 · Fast',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHA2_F_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHAKE_S_TECH: {
+        defaultMessage: '192-bit · SHAKE · Small',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHAKE_S_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHAKE_F_TECH: {
+        defaultMessage: '192-bit · SHAKE · Fast',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHAKE_F_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHA2_S_TECH: {
+        defaultMessage: '256-bit · SHA-2 · Small',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHA2_S_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHA2_F_TECH: {
+        defaultMessage: '256-bit · SHA-2 · Fast',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHA2_F_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHAKE_S_TECH: {
+        defaultMessage: '256-bit · SHAKE · Small',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHAKE_S_TECH',
+    },
+    TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHAKE_F_TECH: {
+        defaultMessage: '256-bit · SHAKE · Fast',
+        id: 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHAKE_F_TECH',
     },
 
     TR_LOG: {
@@ -3705,6 +3772,15 @@ export const messages = defineMessages({
         id: 'TR_ACCOUNT_DETAILS_PATH_DESC',
         defaultMessage:
             'The derivation path is a way to navigate and generate specific keys within the organized structure of an HD (Hierarchical Deterministic) wallet.',
+    },
+    TR_ACCOUNT_DETAILS_SPHINCS_PATH_HEADER: {
+        id: 'TR_ACCOUNT_DETAILS_SPHINCS_PATH_HEADER',
+        defaultMessage: 'Key derivation',
+    },
+    TR_ACCOUNT_DETAILS_SPHINCS_PATH_DESC: {
+        id: 'TR_ACCOUNT_DETAILS_SPHINCS_PATH_DESC',
+        defaultMessage:
+            'SPHINCS+ accounts do not use BIP-32. The signing key is derived from the device mnemonic via HKDF-SHA256 keyed by the info string shown below together with the selected variant.',
     },
     TR_ACCOUNT_TYPE_BIP84_DESC: {
         id: 'TR_ACCOUNT_TYPE_BIP84_DESC',
@@ -5205,6 +5281,46 @@ export const messages = defineMessages({
     TR_ONBOARDING_SEED_TYPE_24_WORDS: {
         id: 'TR_ONBOARDING_SEED_TYPE_24_WORDS',
         defaultMessage: '24-word wallet backup',
+    },
+    TR_ONBOARDING_SEED_TYPE_SPHINCS_PLUS_128: {
+        id: 'TR_ONBOARDING_SEED_TYPE_SPHINCS_PLUS_128',
+        defaultMessage: 'Quantum-Safe 128-bit (36 words)',
+    },
+    TR_ONBOARDING_SEED_TYPE_SPHINCS_PLUS_192: {
+        id: 'TR_ONBOARDING_SEED_TYPE_SPHINCS_PLUS_192',
+        defaultMessage: 'Quantum-Safe 192-bit (54 words)',
+    },
+    TR_ONBOARDING_SEED_TYPE_SPHINCS_PLUS_256: {
+        id: 'TR_ONBOARDING_SEED_TYPE_SPHINCS_PLUS_256',
+        defaultMessage: 'Quantum-Safe 256-bit (72 words)',
+    },
+    TR_ONBOARDING_SPHINCS_PLUS_128_DESCRIPTION: {
+        id: 'TR_ONBOARDING_SPHINCS_PLUS_128_DESCRIPTION',
+        defaultMessage:
+            '36-word backup with SPHINCS+ SHA2-128s. Hardware-accelerated on Trezor Safe 7. Recommended for most users.',
+    },
+    TR_ONBOARDING_SPHINCS_PLUS_192_DESCRIPTION: {
+        id: 'TR_ONBOARDING_SPHINCS_PLUS_192_DESCRIPTION',
+        defaultMessage:
+            '54-word backup with SPHINCS+ 192-bit security. Software hash, slower signing (~15s).',
+    },
+    TR_ONBOARDING_SPHINCS_PLUS_256_DESCRIPTION: {
+        id: 'TR_ONBOARDING_SPHINCS_PLUS_256_DESCRIPTION',
+        defaultMessage:
+            '72-word backup with SPHINCS+ 256-bit security. Maximum security, slower signing (~25s).',
+    },
+    TR_ONBOARDING_SPHINCS_PLUS_RECOMMENDED: {
+        id: 'TR_ONBOARDING_SPHINCS_PLUS_RECOMMENDED',
+        defaultMessage: 'Recommended',
+    },
+    TR_ONBOARDING_BACKUP_CATEGORY_QUANTUM_SAFE: {
+        id: 'TR_ONBOARDING_BACKUP_CATEGORY_QUANTUM_SAFE',
+        defaultMessage: 'Quantum-Safe (SPHINCS+)',
+    },
+    TR_ONBOARDING_SPHINCS_PLUS_EXPERIMENTAL_WARNING: {
+        id: 'TR_ONBOARDING_SPHINCS_PLUS_EXPERIMENTAL_WARNING',
+        defaultMessage:
+            'Post-quantum wallets use SPHINCS+ hash-based signatures for CKB. This is an advanced feature for quantum-resistant security. Only Trezor Safe 7 is supported.',
     },
     TR_ONBOARDING_BACKUP_TYPE_DEFAULT: {
         id: 'TR_ONBOARDING_BACKUP_TYPE_DEFAULT',

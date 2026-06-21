@@ -3,6 +3,7 @@ import { type FieldError } from 'react-hook-form';
 
 import { useDevice } from '@suite/device';
 import { Translation, type TranslationKey, useTranslation } from '@suite/intl';
+import { isSphincsPlusAccountType } from '@suite-common/wallet-utils';
 import {
     Button,
     Card,
@@ -26,6 +27,7 @@ import { useCopySignedMessage } from 'src/hooks/wallet/sign-verify/useCopySigned
 import {
     MAX_LENGTH_MESSAGE,
     MAX_LENGTH_SIGNATURE,
+    MAX_LENGTH_SIGNATURE_SPHINCS_PLUS,
     type SignVerifyFields,
     useSignVerifyForm,
 } from 'src/hooks/wallet/sign-verify/useSignVerifyForm';
@@ -62,6 +64,10 @@ const SignVerify = () => {
     const { isLocked, device } = useDevice();
     const { translationString } = useTranslation();
     const { canCopy, copy } = useCopySignedMessage(formValues, selectedAccount.network);
+
+    const signatureMaxLength = isSphincsPlusAccountType(selectedAccount.account?.accountType)
+        ? MAX_LENGTH_SIGNATURE_SPHINCS_PLUS
+        : MAX_LENGTH_SIGNATURE;
 
     const getErrorMessage = (error?: FieldError) =>
         error ? translationString(error.message as TranslationKey) : undefined;
@@ -262,7 +268,7 @@ const SignVerify = () => {
                                 )}
                                 <Divider margin={{}} />
                                 <Input
-                                    maxLength={MAX_LENGTH_SIGNATURE}
+                                    maxLength={signatureMaxLength}
                                     type="text"
                                     readOnly={isSignPage}
                                     isDisabled={!formValues.signature?.length}
@@ -331,10 +337,10 @@ const SignVerify = () => {
                                     {...addressField}
                                 />
                                 <Textarea
-                                    maxLength={MAX_LENGTH_SIGNATURE}
+                                    maxLength={signatureMaxLength}
                                     characterCount={{
                                         current: formValues.signature?.length,
-                                        max: MAX_LENGTH_SIGNATURE,
+                                        max: signatureMaxLength,
                                     }}
                                     rows={4}
                                     {...signatureProps}

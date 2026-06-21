@@ -17,10 +17,12 @@ const verifyAvailability = ({
     emptyAccounts,
     account,
     unavailableCapability,
+    network,
 }: {
     emptyAccounts: Account[];
     account?: Account;
     unavailableCapability?: UnavailableCapability;
+    network: Network;
 }) => {
     if (unavailableCapability === 'no-support') {
         return 'TR_ACCOUNT_TYPE_NO_SUPPORT';
@@ -35,8 +37,8 @@ const verifyAvailability = ({
         return 'TR_ACCOUNT_TYPE_NO_CAPABILITY';
     }
     if (!account) {
-        // discovery failed?
-        return 'MODAL_ADD_ACCOUNT_NO_ACCOUNT';
+        // CKB accounts are not auto-created by discovery; allow creating the first one
+        return network.networkType === 'ckb' ? undefined : 'MODAL_ADD_ACCOUNT_NO_ACCOUNT';
     }
 
     if (account.networkType !== 'ethereum') {
@@ -114,6 +116,7 @@ const AddDefaultAccountButton = ({
         emptyAccounts: scopedAccounts.filter(account => account.empty && !account.visible),
         account: defaultAccount,
         unavailableCapability,
+        network,
     });
 
     return (

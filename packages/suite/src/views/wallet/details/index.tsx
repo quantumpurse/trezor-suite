@@ -6,7 +6,7 @@ import { useDevice } from '@suite/device';
 import { LearnMoreButton } from '@suite/external-links';
 import { Translation, type TranslationKey } from '@suite/intl';
 import { selectDeviceAccountForNetworkSymbolAndAccountTypeWithIndex } from '@suite-common/wallet-core';
-import { getAccountTypeTech } from '@suite-common/wallet-utils';
+import { getAccountTypeTech, isSphincsPlusAccountType } from '@suite-common/wallet-utils';
 import { Button, Card, Column, InfoItem, Paragraph } from '@trezor/components';
 import { typography } from '@trezor/theme';
 import { HELP_CENTER_BIP32_URL, HELP_CENTER_XPUB_URL, type Url } from '@trezor/urls';
@@ -94,7 +94,12 @@ const Details = () => {
     const locked = isLocked(true);
     const disabled = locked || isReceiveDisabled || !selectedAccount.account;
 
-    const accountTypeTech = getAccountTypeTech(account.path, account.networkType);
+    const accountTypeTech = getAccountTypeTech(
+        account.path,
+        account.networkType,
+        account.accountType,
+    );
+    const isSphincsPlus = isSphincsPlusAccountType(account.accountType);
 
     const isCoinjoinAccount = account.backendType === 'coinjoin';
 
@@ -138,13 +143,24 @@ const Details = () => {
                             (<Translation id={accountTypeTech} />)
                         </Paragraph>
                     </DetailsRow>
-                    <DetailsRow
-                        title="TR_ACCOUNT_DETAILS_PATH_HEADER"
-                        description={<Translation id="TR_ACCOUNT_DETAILS_PATH_DESC" />}
-                        learnMoreUrl={HELP_CENTER_BIP32_URL}
-                    >
-                        <Paragraph typographyStyle="body-sm">{account.path}</Paragraph>
-                    </DetailsRow>
+                    {isSphincsPlus ? (
+                        <DetailsRow
+                            title="TR_ACCOUNT_DETAILS_SPHINCS_PATH_HEADER"
+                            description={<Translation id="TR_ACCOUNT_DETAILS_SPHINCS_PATH_DESC" />}
+                        >
+                            <Paragraph typographyStyle="body-sm">
+                                ckb/quantum-purse/sphincs-plus/{account.index}
+                            </Paragraph>
+                        </DetailsRow>
+                    ) : (
+                        <DetailsRow
+                            title="TR_ACCOUNT_DETAILS_PATH_HEADER"
+                            description={<Translation id="TR_ACCOUNT_DETAILS_PATH_DESC" />}
+                            learnMoreUrl={HELP_CENTER_BIP32_URL}
+                        >
+                            <Paragraph typographyStyle="body-sm">{account.path}</Paragraph>
+                        </DetailsRow>
+                    )}
                     {!isCoinjoinAccount ? (
                         shouldDisplayXpubSection && (
                             <DetailsRow

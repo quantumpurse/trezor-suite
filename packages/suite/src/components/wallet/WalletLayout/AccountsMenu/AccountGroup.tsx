@@ -41,6 +41,10 @@ interface AccountGroupProps {
 const getGroupLabel = (type: AccountGroupProps['type'], hideLabel?: boolean) => {
     if (hideLabel) return null;
 
+    if (type.startsWith('sphincsPlus')) {
+        return 'TR_SPHINCS_PLUS_ACCOUNTS';
+    }
+
     switch (type) {
         case 'normal':
             return 'TR_NORMAL_ACCOUNTS';

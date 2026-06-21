@@ -94,6 +94,9 @@ export const getComposeAddressPlaceholder = async (
         case 'ethereum':
             // ethereum address is not used as it breaks calculating fee logic;
             return '';
+        case 'ckb':
+            // CKB trading is not supported; no placeholder address is needed.
+            return '';
         case 'cardano':
             // it is not possible to use change address of the current account as the placeholder, some exchanges use Byron addresses
             // which need more fees than Shelley addresses used in the Suite, using dummy Byron address for the placeholder

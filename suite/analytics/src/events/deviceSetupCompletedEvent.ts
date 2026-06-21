@@ -5,7 +5,15 @@ import { EventType } from '../constants';
 type Attributes = {
     firmware?: AttributeDef<'install' | 'update' | 'skip' | 'up-to-date'>;
     seed?: AttributeDef<'create' | 'recovery' | 'recovery-in-progress'>;
-    seedType?: AttributeDef<'shamir-single' | 'shamir-advanced' | '12-words' | '24-words'>;
+    seedType?: AttributeDef<
+        | 'shamir-single'
+        | 'shamir-advanced'
+        | '12-words'
+        | '24-words'
+        | 'sphincs-plus-128'
+        | 'sphincs-plus-192'
+        | 'sphincs-plus-256'
+    >;
 
     wasSelectTypeOpened?: AttributeDef<boolean>;
     recoveryType?: AttributeDef<'standard' | 'advanced'>;

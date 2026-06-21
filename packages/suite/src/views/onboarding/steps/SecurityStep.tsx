@@ -55,6 +55,12 @@ export const SecurityStep = () => {
                         return { backup_type: 0 as const, strength: 128, skip_backup: skipBackup };
                     case '24-words':
                         return { backup_type: 0 as const, strength: 256, skip_backup: skipBackup };
+                    case 'sphincs-plus-128':
+                        return { backup_type: 0 as const, strength: 384, skip_backup: skipBackup };
+                    case 'sphincs-plus-192':
+                        return { backup_type: 0 as const, strength: 576, skip_backup: skipBackup };
+                    case 'sphincs-plus-256':
+                        return { backup_type: 0 as const, strength: 768, skip_backup: skipBackup };
                     default:
                         return exhaustive(backupType);
                 }

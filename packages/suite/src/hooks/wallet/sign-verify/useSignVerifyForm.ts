@@ -11,6 +11,9 @@ import type { Account } from 'src/types/wallet';
 
 export const MAX_LENGTH_MESSAGE = 1024;
 export const MAX_LENGTH_SIGNATURE = 255;
+// CKB SPHINCS+ signatures are raw SLH-DSA (up to ~50 KB → ~100k hex chars),
+// far beyond the 255 cap used for ECDSA-class signatures.
+export const MAX_LENGTH_SIGNATURE_SPHINCS_PLUS = 100_000;
 
 type SignVerifyContext = {
     isSignPage: boolean;

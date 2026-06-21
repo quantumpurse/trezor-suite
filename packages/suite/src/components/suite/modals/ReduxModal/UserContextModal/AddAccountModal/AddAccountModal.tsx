@@ -240,7 +240,9 @@ export const AddAccountModal = ({
 
     const addNewAccount = async () => {
         if (selectedNetwork) {
-            const account = selectedNetwork.accountTypes[currentType];
+            const account =
+                selectedNetwork.accountTypes[currentType] ??
+                accountTypes?.find(a => a.accountType === currentType);
 
             if (account) {
                 const newAccount = await prepareNewAccountPayload({

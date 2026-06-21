@@ -8,6 +8,7 @@ import {
     getNetworkId,
     getProtocolMagic,
     getStakingPath,
+    sphincsVariantFromAccountType,
 } from '@suite-common/wallet-utils';
 import TrezorConnect, { PROTO } from '@trezor/connect';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- TODO: extract pathUtils to a shared location and remove this exception (see #27376 deferred work)
@@ -92,15 +93,30 @@ const signByNetwork =
                 return TrezorConnect.signMessage(params);
             case 'ethereum':
                 return TrezorConnect.ethereumSignMessage(params);
-            case 'ckb':
+            case 'ckb': {
+                const ckbNetwork = account.symbol === 'tckb' ? 'Testnet' : 'Mainnet';
+                const sphincsVariant = sphincsVariantFromAccountType(account.accountType);
+                if (sphincsVariant !== undefined) {
+                    return TrezorConnect.ckbSphincsPlusSignMessage({
+                        device,
+                        accountIndex: account.index,
+                        variant: sphincsVariant,
+                        message,
+                        hex,
+                        network: ckbNetwork,
+                        chunkify: true,
+                    });
+                }
+
                 return TrezorConnect.ckbSignMessage({
                     device,
                     path,
                     message,
                     hex,
-                    network: account.symbol === 'tckb' ? 'Testnet' : 'Mainnet',
+                    network: ckbNetwork,
                     chunkify: true,
                 });
+            }
             case 'cardano': {
                 const payload = hex ? message : Buffer.from(message, 'utf8').toString('hex');
                 const serializedPath = typeof path === 'string' ? path : getSerializedPath(path);
@@ -161,16 +177,49 @@ const verifyByNetwork =
                 return TrezorConnect.verifyMessage(params);
             case 'ethereum':
                 return TrezorConnect.ethereumVerifyMessage(params);
-            case 'ckb':
+            case 'ckb': {
+                const ckbNetwork = account.symbol === 'tckb' ? 'Testnet' : 'Mainnet';
+                const sphincsVariant = sphincsVariantFromAccountType(account.accountType);
+                if (sphincsVariant !== undefined) {
+                    return (async () => {
+                        // SPHINCS+ verify needs the signer's public key (not
+                        // recoverable from the signature); derive it from the
+                        // selected account.
+                        const addr = await TrezorConnect.ckbSphincsPlusGetAddress({
+                            device,
+                            accountIndex: account.index,
+                            variant: sphincsVariant,
+                            network: ckbNetwork,
+                            showOnTrezor: false,
+                        });
+                        if (!addr.success) {
+                            return addr;
+                        }
+
+                        return TrezorConnect.ckbSphincsPlusVerifyMessage({
+                            device,
+                            variant: sphincsVariant,
+                            address,
+                            publicKey: addr.payload.publicKey,
+                            message,
+                            signature,
+                            hex,
+                            network: ckbNetwork,
+                            chunkify: true,
+                        });
+                    })();
+                }
+
                 return TrezorConnect.ckbVerifyMessage({
                     device,
                     address,
                     message,
                     signature,
                     hex,
-                    network: account.symbol === 'tckb' ? 'Testnet' : 'Mainnet',
+                    network: ckbNetwork,
                     chunkify: true,
                 });
+            }
             default:
                 return Promise.reject(new Error('Verifying not supported'));
         }

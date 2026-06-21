@@ -136,11 +136,16 @@ export const AccountsList = ({
     const segwitAccounts = filterAccountsByType('segwit');
     const legacyAccounts = filterAccountsByType('legacy');
     const ledgerAccounts = filterAccountsByType('ledger');
+    const sphincsPlusAccounts = filteredAccounts.filter(a =>
+        a.accountType.startsWith('sphincsPlus'),
+    );
 
     const hasMultipleAccounts = filteredAccounts.some(a => a.accountType !== 'normal');
 
     const keepOpen = (type: Account['accountType']) =>
         selectedAccount.account?.accountType === type || // selected account is from this group
+        (type.startsWith('sphincsPlus') &&
+            !!selectedAccount.account?.accountType?.startsWith('sphincsPlus')) || // SPHINCS+ variants share one group
         (type === 'coinjoin' && coinjoinIsPreloading) || // coinjoin account is requested but not yet created
         (!!searchString && searchString.length > 0) || // filter by search string is active
         (type === 'normal' && !hasMultipleAccounts); // always keep normal accounts open
@@ -195,6 +200,10 @@ export const AccountsList = ({
                 {buildGroup('segwit', segwitAccounts)}
                 {buildGroup('legacy', legacyAccounts)}
                 {buildGroup('ledger', ledgerAccounts)}
+                {buildGroup(
+                    sphincsPlusAccounts[0]?.accountType ?? 'sphincsPlus128Sha2S',
+                    sphincsPlusAccounts,
+                )}
             </Column>
         );
     }

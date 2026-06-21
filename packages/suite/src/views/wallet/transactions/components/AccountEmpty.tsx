@@ -95,7 +95,7 @@ export const AccountEmpty = ({ account }: AccountEmptyProps) => {
                               'data-testid': '@accounts/empty-account/buy',
                               key: '2',
                               onClick: handleNavigateToBuyPage,
-                              iconLeft: 'currencyCircleDollar',
+                              iconLeft: 'currencyCircleDollar' as const,
                               children: isTokensNetwork ? (
                                   <Translation id="TR_BUY" />
                               ) : (

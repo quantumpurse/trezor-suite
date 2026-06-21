@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 
 import { useTranslation } from '@suite/intl';
 import { type AccountType, type NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
-import { getTitleForCoinjoinAccount } from '@suite-common/wallet-utils';
+import { getSphincsShortName, getTitleForCoinjoinAccount } from '@suite-common/wallet-utils';
 
 export interface GetDefaultAccountLabelParams {
     accountType: AccountType;
@@ -20,11 +20,17 @@ export const useDefaultAccountLabel = () => {
             }
 
             const displayedAccountNumber = index + 1;
-
-            return translationString('LABELING_ACCOUNT', {
+            const baseLabel = translationString('LABELING_ACCOUNT', {
                 networkName: getNetwork(symbol).name,
                 index: displayedAccountNumber,
             });
+
+            const sphincsTag = getSphincsShortName(accountType);
+            if (sphincsTag) {
+                return `${baseLabel} · ${sphincsTag}`;
+            }
+
+            return baseLabel;
         },
         [translationString],
     );

@@ -11,7 +11,14 @@ export type OnboardingAnalytics = {
     startTime: number;
     firmware: 'install' | 'update' | 'skip' | 'up-to-date';
     seed: 'create' | 'recovery' | 'recovery-in-progress';
-    seedType: 'shamir-single' | 'shamir-advanced' | '12-words' | '24-words';
+    seedType:
+        | 'shamir-single'
+        | 'shamir-advanced'
+        | '12-words'
+        | '24-words'
+        | 'sphincs-plus-128'
+        | 'sphincs-plus-192'
+        | 'sphincs-plus-256';
     wasSelectTypeOpened: boolean;
     recoveryType: 'standard' | 'advanced';
     backup: 'create' | 'skip';

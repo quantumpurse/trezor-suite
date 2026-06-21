@@ -26,6 +26,7 @@ import { HELP_CENTER_MULTI_SHARE_BACKUP_URL } from '@trezor/urls';
 
 import { LegacyOptions } from './LegacyOptions';
 import { ShamirOptions } from './ShamirOptions';
+import { SphincsPlusOptions } from './SphincsPlusOptions';
 import { isShamirBackupType } from '../utils';
 
 const OptionGroupHeading = styled.div`
@@ -181,6 +182,24 @@ export const FloatingSelections = forwardRef<HTMLDivElement, FloatingSelectionsP
                         />
                     </LegacyOptionsMargin>
                 )}
+                <InnerScrollableWrapper>
+                    <DividerWrapper>
+                        <Divider margin={{ top: spacings.zero, bottom: spacings.zero }} />
+                    </DividerWrapper>
+                    <OptionGroupHeading>
+                        <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
+                            <Translation id="TR_ONBOARDING_BACKUP_CATEGORY_QUANTUM_SAFE" />
+                        </Text>
+                    </OptionGroupHeading>
+                    <Banner
+                        intent="info"
+                        icon
+                        description={
+                            <Translation id="TR_ONBOARDING_SPHINCS_PLUS_EXPERIMENTAL_WARNING" />
+                        }
+                    />
+                    <SphincsPlusOptions onSelect={onSelect} selected={selected} />
+                </InnerScrollableWrapper>
             </FloatingSelectionsWrapper>
         );
     },
