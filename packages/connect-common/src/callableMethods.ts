@@ -117,7 +117,16 @@ const connectCallableMethodGroups = {
         'cardanoSignMessage',
         'cardanoComposeTransaction',
     ],
-    ckb: ['ckbGetAddress', 'ckbSignTransaction', 'ckbSignMessage', 'ckbVerifyMessage'],
+    ckb: [
+        'ckbGetAddress',
+        'ckbSignTransaction',
+        'ckbSphincsPlusGetAddress',
+        'ckbSphincsPlusSignTransaction',
+        'ckbSphincsPlusSignMessage',
+        'ckbSphincsPlusVerifyMessage',
+        'ckbSignMessage',
+        'ckbVerifyMessage',
+    ],
     monero: [
         'moneroGetAddress',
         'moneroGetWatchKey',

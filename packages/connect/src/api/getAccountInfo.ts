@@ -62,6 +62,7 @@ export default class GetAccountInfo extends AbstractMethod<'getAccountInfo', Req
                 { name: 'defaultAccountType', type: 'string' },
                 { name: 'derivationType', type: 'number' },
                 { name: 'suppressBackupWarning', type: 'boolean' },
+                { name: 'accountType', type: 'string' },
             ]);
 
             // validate coin info
@@ -196,7 +197,12 @@ export default class GetAccountInfo extends AbstractMethod<'getAccountInfo', Req
                 try {
                     const accountDescriptor = await this.getDevice()
                         .getCommands()
-                        .getAccountDescriptor(request.coinInfo, address_n, request.derivationType);
+                        .getAccountDescriptor(
+                            request.coinInfo,
+                            address_n,
+                            request.derivationType,
+                            request.accountType,
+                        );
                     if (accountDescriptor) {
                         descriptor = accountDescriptor.descriptor;
                         legacyXpub = accountDescriptor.legacyXpub;

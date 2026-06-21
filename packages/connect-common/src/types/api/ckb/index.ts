@@ -116,6 +116,56 @@ export const CKBSignedTx = Type.Object({
     tx_hash: Type.String(),
 });
 
+export type CKBSphincsPlusGetAddressResult = Static<typeof CKBSphincsPlusGetAddressResult>;
+export const CKBSphincsPlusGetAddressResult = Type.Object({
+    address: Type.String(),
+    lockArgs: Type.String(),
+    publicKey: Type.String(),
+    variant: Type.Number(),
+});
+
+export type CKBSphincsPlusSignTransaction = Static<typeof CKBSphincsPlusSignTransaction>;
+export const CKBSphincsPlusSignTransaction = Type.Object({
+    accountIndex: Type.Optional(Type.Number()),
+    variant: Type.Optional(Type.Number()),
+    transaction: CKBTransaction,
+    witnesses: Type.Optional(Type.Array(CKBSignWitness)),
+    signGroupInputIndices: Type.Optional(Type.Array(Type.Number())),
+    network: CKBNetwork,
+    chunkify: Type.Optional(Type.Boolean()),
+    prevTxs: Type.Optional(Type.Record(Type.String(), CKBTransaction)),
+});
+
+export type CKBSphincsPlusSignMessage = Static<typeof CKBSphincsPlusSignMessage>;
+export const CKBSphincsPlusSignMessage = Type.Object({
+    accountIndex: Type.Optional(Type.Number()),
+    variant: Type.Optional(Type.Number()),
+    message: Type.String(),
+    network: CKBNetwork,
+    hex: Type.Optional(Type.Boolean()),
+    chunkify: Type.Optional(Type.Boolean()),
+});
+
+export type CKBSphincsPlusMessageSignature = Static<typeof CKBSphincsPlusMessageSignature>;
+export const CKBSphincsPlusMessageSignature = Type.Object({
+    address: Type.String(),
+    signature: Type.String(),
+    publicKey: Type.String(),
+    variant: Type.Number(),
+});
+
+export type CKBSphincsPlusVerifyMessage = Static<typeof CKBSphincsPlusVerifyMessage>;
+export const CKBSphincsPlusVerifyMessage = Type.Object({
+    variant: Type.Number(),
+    address: Type.String(),
+    publicKey: Type.String(),
+    message: Type.String(),
+    signature: Type.String(),
+    network: CKBNetwork,
+    hex: Type.Optional(Type.Boolean()),
+    chunkify: Type.Optional(Type.Boolean()),
+});
+
 export type CKBSignMessage = Static<typeof CKBSignMessage>;
 export const CKBSignMessage = Type.Object({
     path: DerivationPath,

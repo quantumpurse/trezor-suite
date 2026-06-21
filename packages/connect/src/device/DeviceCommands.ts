@@ -13,7 +13,7 @@ import { MessagesSchema as PROTO } from '@trezor/protobuf';
 import { getBech32Network, getSegwitNetwork } from '../data/coinInfo';
 import { resolveDescriptorForTaproot } from '../device/resolveDescriptorForTaproot';
 import type { TypedCallProvider } from '../types/typed-call-provider';
-import { isCkbCoin } from '../utils/coinInfoUtils';
+import { isCkbCoin, sphincsVariantFromAccountType } from '../utils/coinInfoUtils';
 import * as hdnodeUtils from '../utils/hdnodeUtils';
 import { getScriptType, getSerializedPath, isTaprootPath } from '../utils/pathUtils';
 
@@ -203,8 +203,32 @@ export const DeviceCommands = (deviceTypedCall: TypedCallProvider) => {
         coinInfo: CoinInfo,
         address_n: number[],
         derivationType: Messages.CardanoDerivationType = PROTO.CardanoDerivationType.ICARUS_TREZOR,
+        accountType?: string,
     ): Promise<AccountDescriptor> => {
-        // CKB: get address from device via CKBGetAddress
+        // CKB SPHINCS+: the address is HKDF-derived in firmware from the account
+        // index + variant, so it cannot be reconstructed from a BIP-32 path.
+        // Non-SPHINCS+ CKB account types fall through to the ECDSA path below.
+        const sphincsVariant = sphincsVariantFromAccountType(accountType);
+        if (isCkbCoin(coinInfo) && sphincsVariant !== undefined) {
+            const accountIndex = address_n.length >= 3 ? address_n[2] & 0x7fffffff : 0;
+            const { message } = await typedCall(
+                'CKBSphincsPlusGetAddress',
+                'CKBSphincsPlusAddress',
+                {
+                    account_index: accountIndex,
+                    variant: sphincsVariant,
+                    show_display: false,
+                    network: coinInfo.shortcut === 'tCKB' ? 'Testnet' : 'Mainnet',
+                },
+            );
+
+            return {
+                descriptor: message.address,
+                address_n,
+            };
+        }
+
+        // CKB ECDSA: get address from device via CKBGetAddress
         if (isCkbCoin(coinInfo)) {
             const ckbPath = [...address_n, 0, 0]; // append change=0, address_index=0
             const { message } = await typedCall('CKBGetAddress', 'CKBAddress', {

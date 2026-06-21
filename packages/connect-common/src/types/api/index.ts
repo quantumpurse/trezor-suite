@@ -37,6 +37,10 @@ import type { cipherKeyValue } from './cipherKeyValue';
 import type { ckbGetAddress } from './ckbGetAddress';
 import type { ckbSignMessage } from './ckbSignMessage';
 import type { ckbSignTransaction } from './ckbSignTransaction';
+import type { ckbSphincsPlusGetAddress } from './ckbSphincsPlusGetAddress';
+import type { ckbSphincsPlusSignMessage } from './ckbSphincsPlusSignMessage';
+import type { ckbSphincsPlusSignTransaction } from './ckbSphincsPlusSignTransaction';
+import type { ckbSphincsPlusVerifyMessage } from './ckbSphincsPlusVerifyMessage';
 import type { ckbVerifyMessage } from './ckbVerifyMessage';
 import type { composeTransaction } from './composeTransaction';
 import type { discoverAccounts } from './discoverAccounts';
@@ -436,6 +440,10 @@ export type TrezorConnectTron = Static<typeof TrezorConnectTron>;
 export const TrezorConnectCkb = Type.Object({
     ckbGetAddress: Type.Unsafe<typeof ckbGetAddress>(),
     ckbSignTransaction: Type.Unsafe<typeof ckbSignTransaction>(),
+    ckbSphincsPlusGetAddress: Type.Unsafe<typeof ckbSphincsPlusGetAddress>(),
+    ckbSphincsPlusSignTransaction: Type.Unsafe<typeof ckbSphincsPlusSignTransaction>(),
+    ckbSphincsPlusSignMessage: Type.Unsafe<typeof ckbSphincsPlusSignMessage>(),
+    ckbSphincsPlusVerifyMessage: Type.Unsafe<typeof ckbSphincsPlusVerifyMessage>(),
     ckbSignMessage: Type.Unsafe<typeof ckbSignMessage>(),
     ckbVerifyMessage: Type.Unsafe<typeof ckbVerifyMessage>(),
 });

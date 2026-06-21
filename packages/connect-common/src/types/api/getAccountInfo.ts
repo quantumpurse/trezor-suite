@@ -12,6 +12,7 @@ export interface GetAccountInfo extends Omit<BlockchainLinkParams<'getAccountInf
     defaultAccountType?: DiscoveryAccountType;
     derivationType?: PROTO.CardanoDerivationType;
     suppressBackupWarning?: boolean;
+    accountType?: string;
 }
 
 export declare function getAccountInfo(params: Params<GetAccountInfo>): Response<AccountInfo>;
