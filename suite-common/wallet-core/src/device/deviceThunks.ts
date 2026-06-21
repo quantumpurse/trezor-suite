@@ -30,6 +30,7 @@ import {
     getNetworkId,
     getProtocolMagic,
     getStakingPath,
+    sphincsVariantFromAccountType,
 } from '@suite-common/wallet-utils';
 import TrezorConnect, {
     type Address,
@@ -219,7 +220,15 @@ export const confirmAddressOnDeviceThunk = createThunk(
     async (
         { accountKey, addressPath, chunkify, showOnTrezor = true }: ConfirmAddressOnDeviceThunk,
         { getState },
-    ): Promise<ConnectResponse<Address | CardanoAddress>> => {
+    ): Promise<
+        ConnectResponse<
+            // CKB SPHINCS+ getAddress returns lock_args/public_key/variant instead
+            // of the standard path/serializedPath. Callers only branch on `success`.
+            | Address
+            | CardanoAddress
+            | { address: string; lockArgs: string; publicKey: string; variant: number }
+        >
+    > => {
         const device = selectSelectedDevice(getState());
         const account = selectAccountByKey(getState(), accountKey);
 
@@ -271,13 +280,25 @@ export const confirmAddressOnDeviceThunk = createThunk(
                 response = TrezorConnect.getAddress(params);
                 break;
             case 'ckb': {
-                const coin = account.symbol === 'tckb' ? 'tckb' : 'ckb';
+                const ckbNetwork = account.symbol === 'tckb' ? 'Testnet' : 'Mainnet';
+                const sphincsVariant = sphincsVariantFromAccountType(account.accountType);
 
-                response = TrezorConnect.ckbGetAddress({
-                    ...params,
-                    coin,
-                    network: account.symbol === 'tckb' ? 'Testnet' : 'Mainnet',
-                });
+                if (sphincsVariant !== undefined) {
+                    response = TrezorConnect.ckbSphincsPlusGetAddress({
+                        device,
+                        accountIndex: account.index,
+                        variant: sphincsVariant,
+                        network: ckbNetwork,
+                        showOnTrezor,
+                        chunkify,
+                    });
+                } else {
+                    response = TrezorConnect.ckbGetAddress({
+                        ...params,
+                        coin: account.symbol === 'tckb' ? 'tckb' : 'ckb',
+                        network: ckbNetwork,
+                    });
+                }
                 break;
             }
             case 'solana':

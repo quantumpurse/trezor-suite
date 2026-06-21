@@ -9,9 +9,13 @@ import {
     type PrecomposedTransaction,
 } from '@suite-common/wallet-types';
 import {
+    DEFAULT_SPHINCS_PLUS_VARIANT,
     formatNetworkAmount,
     getExternalComposeOutput,
+    getSphincsVariantInfo,
+    isSphincsPlusAccountType,
     isTestnet,
+    sphincsVariantFromAccountType,
 } from '@suite-common/wallet-utils';
 import TrezorConnect, { type FeeLevel } from '@trezor/connect';
 
@@ -129,6 +133,40 @@ const mapCccTransactionToTrezor = (
     outputsData: tx.outputsData.map(String),
 });
 
+// SPHINCS+ lock-script cell_dep per network. These reference the on-chain
+// cells holding the SPHINCS+ lock script code.
+const CKB_SPHINCS_PLUS_CELL_DEPS: Record<
+    'Mainnet' | 'Testnet',
+    { txHash: string; index: number; depType: 'code' | 'dep_group' }
+> = {
+    Mainnet: {
+        txHash: '0x4598d00df2f3dc8bc40eee38689a539c94f6cc3720b7a2a6746736daa60f500a',
+        index: 0,
+        depType: 'code',
+    },
+    Testnet: {
+        txHash: '0x631d9a6049fb1fc3790e89d9daf35abe535b5e754cd8c3404319319710f0b106',
+        index: 0,
+        depType: 'code',
+    },
+};
+
+const isSphincsPlus = (account: Account) => isSphincsPlusAccountType(account.accountType);
+
+// Variant is derived from the account type (e.g. `sphincsPlus192Sha2S` → 51);
+// the default guards a malformed legacy record from breaking signing.
+const getAccountSphincsVariant = (account: Account): number =>
+    sphincsVariantFromAccountType(account.accountType) ?? DEFAULT_SPHINCS_PLUS_VARIANT;
+
+// Witness-lock size = header(5) + pubkey(2*spx_n) + signature, pulled from the
+// shared variant table so it never drifts from the firmware side.
+const getSphincsPlusWitnessSize = (variant: number): number => {
+    const info =
+        getSphincsVariantInfo(variant) ?? getSphincsVariantInfo(DEFAULT_SPHINCS_PLUS_VARIANT);
+
+    return info!.witnessLockBytes;
+};
+
 class TrezorCkbSigner extends ccc.Signer {
     private readonly addressPromise: Promise<ccc.Address>;
 
@@ -170,8 +208,34 @@ class TrezorCkbSigner extends ccc.Signer {
         const { script } = await this.getRecommendedAddressObj();
 
         ensureCkbInputWitnesses(tx);
-        await tx.prepareSighashAllWitness(script, 65, this.client);
-        await tx.addCellDepsOfKnownScripts(this.client, ccc.KnownScript.Secp256k1Blake160);
+
+        if (isSphincsPlus(this.account)) {
+            const sigSize = getSphincsPlusWitnessSize(getAccountSphincsVariant(this.account));
+            await tx.prepareSighashAllWitness(script, sigSize, this.client);
+
+            // Add the SPHINCS+ lock cell_dep manually (not a ccc KnownScript).
+            // completeFeeBy may call this repeatedly, so guard against duplicates.
+            const networkKey = isTestnet(this.account.symbol) ? 'Testnet' : 'Mainnet';
+            const dep = CKB_SPHINCS_PLUS_CELL_DEPS[networkKey];
+            const cccDepType = dep.depType === 'dep_group' ? 'depGroup' : 'code';
+            const alreadyAdded = tx.cellDeps.some(
+                d =>
+                    d.outPoint.txHash === dep.txHash &&
+                    BigInt(d.outPoint.index) === BigInt(dep.index) &&
+                    d.depType === cccDepType,
+            );
+            if (!alreadyAdded) {
+                tx.cellDeps.push(
+                    ccc.CellDep.from({
+                        outPoint: { txHash: dep.txHash, index: dep.index },
+                        depType: cccDepType,
+                    }),
+                );
+            }
+        } else {
+            await tx.prepareSighashAllWitness(script, 65, this.client);
+            await tx.addCellDepsOfKnownScripts(this.client, ccc.KnownScript.Secp256k1Blake160);
+        }
 
         return tx;
     }
@@ -190,6 +254,12 @@ class TrezorCkbSigner extends ccc.Signer {
             return tx;
         }
 
+        const sphincsPlus = isSphincsPlus(this.account);
+        const variant = sphincsPlus ? getAccountSphincsVariant(this.account) : undefined;
+        const lockSize = sphincsPlus
+            ? getSphincsPlusWitnessSize(variant!)
+            : CKB_SIGNATURE_PLACEHOLDER_SIZE;
+
         // Forward the witness vector ccc already built so the device hashes the
         // exact sighash_all preimage of the broadcast transaction.
         const signingWitnessArgs = tx.getWitnessArgsAt(signHashInfo.position);
@@ -197,7 +267,7 @@ class TrezorCkbSigner extends ccc.Signer {
             index === signHashInfo.position
                 ? {
                       witnessArgs: {
-                          lockSize: CKB_SIGNATURE_PLACEHOLDER_SIZE,
+                          lockSize,
                           inputType: signingWitnessArgs?.inputType,
                           outputType: signingWitnessArgs?.outputType,
                       },
@@ -207,19 +277,74 @@ class TrezorCkbSigner extends ccc.Signer {
         // Suite composes single-group transactions: every input is in the group.
         const signGroupInputIndices = tx.inputs.map((_, index) => index);
 
+        const device = {
+            path: this.device.path,
+            instance: this.device.instance,
+            state: this.device.state,
+            useEmptyPassphrase: this.device.useEmptyPassphrase,
+        };
+        const network = isTestnet(this.account.symbol) ? 'Testnet' : 'Mainnet';
+        const witness = tx.getWitnessArgsAt(signHashInfo.position) ?? ccc.WitnessArgs.from({});
+
+        if (sphincsPlus) {
+            const response = await TrezorConnect.ckbSphincsPlusSignTransaction({
+                device,
+                accountIndex: this.account.index,
+                variant,
+                transaction: mapCccTransactionToTrezor(tx),
+                witnesses,
+                signGroupInputIndices,
+                network,
+                chunkify: this.chunkify,
+            });
+
+            if (!response.success) {
+                throw new TrezorCkbSignError(response.error.message, response.error.code);
+            }
+
+            // Host self-check that the device hashed the same raw tx body
+            // (inputs/outputs/cell_deps) we authorized. ccc tx.hash() excludes
+            // witnesses; witness integrity is enforced by CKB consensus on-chain.
+            const hostTxHash = tx.hash().toLowerCase();
+            const deviceTxHash = (
+                response.payload.tx_hash.startsWith('0x')
+                    ? response.payload.tx_hash
+                    : `0x${response.payload.tx_hash}`
+            ).toLowerCase();
+            if (hostTxHash !== deviceTxHash) {
+                throw new TrezorCkbSignError(
+                    'CKB SPHINCS+: device-reported tx hash does not match host-computed hash',
+                );
+            }
+
+            const sigHex = response.payload.signature.startsWith('0x')
+                ? response.payload.signature.slice(2)
+                : response.payload.signature;
+
+            // Parity with the ECDSA path (normalizeTrezorCkbSignature): the lock
+            // must be exactly the size reserved in the sighash, otherwise the
+            // broadcast witness differs from what was signed and the tx is
+            // rejected on-chain. Fail fast with a clear error instead.
+            const sigBytes = sigHex.length / 2;
+            if (sigBytes !== lockSize) {
+                throw new TrezorCkbSignError(
+                    `CKB SPHINCS+: device returned lock of ${sigBytes} bytes, expected ${lockSize}`,
+                );
+            }
+
+            witness.lock = `0x${sigHex}`;
+            tx.setWitnessArgsAt(signHashInfo.position, witness);
+
+            return tx;
+        }
+
         const response = await TrezorConnect.ckbSignTransaction({
-            device: {
-                path: this.device.path,
-                instance: this.device.instance,
-                state: this.device.state,
-                useEmptyPassphrase: this.device.useEmptyPassphrase,
-            },
+            device,
             path: this.account.path,
             transaction: mapCccTransactionToTrezor(tx),
             witnesses,
             signGroupInputIndices,
-            network: isTestnet(this.account.symbol) ? 'Testnet' : 'Mainnet',
-            fee: (await tx.getFee(this.client)).toString(),
+            network,
             chunkify: this.chunkify,
         });
 
@@ -227,7 +352,6 @@ class TrezorCkbSigner extends ccc.Signer {
             throw new TrezorCkbSignError(response.error.message, response.error.code);
         }
 
-        const witness = tx.getWitnessArgsAt(signHashInfo.position) ?? ccc.WitnessArgs.from({});
         witness.lock = `0x${normalizeTrezorCkbSignature(response.payload.signature)}`;
         tx.setWitnessArgsAt(signHashInfo.position, witness);
 
