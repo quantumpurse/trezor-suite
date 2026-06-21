@@ -47,6 +47,7 @@ import { HELP_CENTER_ADDRESSES_URL, HELP_CENTER_TAPROOT_URL } from '@trezor/urls
 import { BigNumber, arrayDistinct, bufferUtils } from '@trezor/utils';
 
 import { convertAmountSubunitsToUnits, formatNetworkAmount } from './amountUtils';
+import { isSphincsPlusAccountType } from './ckbSphincsPlus';
 import { toFiatCurrency } from './fiatConverterUtils';
 import { getFiatRateKey } from './fiatRatesUtils';
 import { getAccountTotalStakingBalance } from './stakingUtils';
@@ -195,6 +196,10 @@ export const getAccountTypeName = ({ path, accountType, networkType }: getAccoun
     if (!networkType) return null;
 
     if (networkType === 'ckb') {
+        // All 12 SPHINCS+ variants share the same primary label; the
+        // hash/speed detail is rendered in the tech string below.
+        if (isSphincsPlusAccountType(accountType)) return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS';
+
         return 'TR_ACCOUNT_TYPE_ECDSA';
     }
 
@@ -237,8 +242,41 @@ export const getAccountTypeName = ({ path, accountType, networkType }: getAccoun
     return 'TR_ACCOUNT_TYPE_BIP44_NAME';
 };
 
-export const getAccountTypeTech = (path: Bip43PathTemplate, networkType?: NetworkType) => {
+export const getAccountTypeTech = (
+    path: Bip43PathTemplate,
+    networkType?: NetworkType,
+    accountType?: AccountType,
+) => {
     if (networkType === 'ckb') {
+        // One i18n key per SPHINCS+ variant so the dropdown can show
+        // 128/192/256 · sha2/shake · small/fast.
+        switch (accountType) {
+            case 'sphincsPlus128Sha2S':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHA2_S_TECH';
+            case 'sphincsPlus128Sha2F':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHA2_F_TECH';
+            case 'sphincsPlus128ShakeS':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHAKE_S_TECH';
+            case 'sphincsPlus128ShakeF':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_128_SHAKE_F_TECH';
+            case 'sphincsPlus192Sha2S':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHA2_S_TECH';
+            case 'sphincsPlus192Sha2F':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHA2_F_TECH';
+            case 'sphincsPlus192ShakeS':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHAKE_S_TECH';
+            case 'sphincsPlus192ShakeF':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_192_SHAKE_F_TECH';
+            case 'sphincsPlus256Sha2S':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHA2_S_TECH';
+            case 'sphincsPlus256Sha2F':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHA2_F_TECH';
+            case 'sphincsPlus256ShakeS':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHAKE_S_TECH';
+            case 'sphincsPlus256ShakeF':
+                return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_256_SHAKE_F_TECH';
+        }
+
         return 'TR_ACCOUNT_TYPE_ECDSA_TECH';
     }
 
@@ -272,6 +310,10 @@ export const getAccountTypeDesc = ({ path, accountType, networkType }: getAccoun
             return 'TR_ACCOUNT_TYPE_LEGACY_DESC';
         case 'ecdsa':
             return 'TR_ACCOUNT_TYPE_ECDSA_DESC';
+    }
+
+    if (isSphincsPlusAccountType(accountType)) {
+        return 'TR_ACCOUNT_TYPE_SPHINCS_PLUS_DESC';
     }
 
     if (networkType === 'ckb') {
@@ -1211,6 +1253,7 @@ export const prepareNewAccountPayload = async ({
             useEmptyPassphrase: device.useEmptyPassphrase,
         },
         details: 'txs',
+        accountType,
         protocols: network.networkType === 'ethereum' ? ['erc4626'] : undefined,
     });
 

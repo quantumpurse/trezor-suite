@@ -6,6 +6,7 @@ export * from './balanceUtils';
 export * from './bitcoinUtils';
 export * from './calculateChainedTransactionsFeeForRbf';
 export * from './cardanoUtils';
+export * from './ckbSphincsPlus';
 export * from './csvParserUtils';
 export * from './deviceUtils';
 export * from './discreetModeUtils';
