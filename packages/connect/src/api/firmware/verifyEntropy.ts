@@ -1,5 +1,6 @@
 import { hmac } from '@noble/hashes/hmac.js';
-import { sha256 } from '@noble/hashes/sha2.js';
+import { pbkdf2Async } from '@noble/hashes/pbkdf2.js';
+import { sha256, sha512 } from '@noble/hashes/sha2.js';
 import { randomBytes } from '@noble/hashes/utils.js';
 import { entropyToMnemonic, mnemonicToSeed } from '@scure/bip39';
 
@@ -86,13 +87,29 @@ const entropyToSeedSlip39 = async (encryptedSecret: Buffer) => {
 };
 
 const getEntropy = (trezorEntropy: string, hostEntropy: string, strength: number) => {
-    const data = Buffer.concat([
-        Buffer.from(trezorEntropy, 'hex'),
-        Buffer.from(hostEntropy, 'hex'),
-    ]);
-    const entropy = sha256(data);
+    const internalEntropy = Buffer.from(trezorEntropy, 'hex');
+    const externalEntropy = Buffer.from(hostEntropy, 'hex');
+    const strengthBytes = Math.floor(strength / 8);
 
-    return Buffer.from(entropy.subarray(0, Math.floor(strength / 8)));
+    if (strengthBytes <= 32) {
+        const entropy = sha256(Buffer.concat([internalEntropy, externalEntropy]));
+
+        return Buffer.from(entropy.subarray(0, strengthBytes));
+    }
+
+    // Extended strength (384/576/768 bits): 3 sub-secrets, each from its own
+    // internal-entropy slice plus a 1-byte domain separator. Must match the
+    // firmware's reset_device._compute_secret_from_entropy so host and device
+    // compute the same secret during the entropy check.
+    const subStrength = Math.floor(strengthBytes / 3);
+    const parts: Buffer[] = [];
+    for (let i = 0; i < 3; i++) {
+        const subInternal = internalEntropy.subarray(i * subStrength, (i + 1) * subStrength);
+        const subSecret = sha256(Buffer.concat([subInternal, externalEntropy, Buffer.from([i])]));
+        parts.push(Buffer.from(subSecret.subarray(0, subStrength)));
+    }
+
+    return Buffer.concat(parts);
 };
 
 const computeSeed = (type: VerifyEntropyOptions['type'], secret: Buffer) => {
@@ -112,7 +129,31 @@ const computeSeed = (type: VerifyEntropyOptions['type'], secret: Buffer) => {
     }
 
     // use bip39
-    return mnemonicToSeed(entropyToMnemonic(secret, [...bip39])).then(seed => Buffer.from(seed));
+    if (secret.length <= 32) {
+        return mnemonicToSeed(entropyToMnemonic(secret, [...bip39])).then(seed =>
+            Buffer.from(seed),
+        );
+    }
+
+    // Extended BIP-39 mnemonic (384/576/768 bits): 3 concatenated standard
+    // BIP-39 phrases, mirroring the firmware so the derived seed matches.
+    const subLength = Math.floor(secret.length / 3);
+    const phrases: string[] = [];
+    for (let i = 0; i < 3; i++) {
+        const subSecret = Buffer.from(secret.subarray(i * subLength, (i + 1) * subLength));
+        phrases.push(entropyToMnemonic(subSecret, [...bip39]));
+    }
+
+    // Derive the seed via PBKDF2 directly: `mnemonicToSeed` rejects the
+    // non-standard 36/54/72-word length, whereas the firmware's `bip39.seed`
+    // hashes the full mnemonic string. This matches the BIP-39 seed derivation
+    // the firmware performs.
+    const mnemonicNfkd = phrases.join(' ').normalize('NFKD');
+    const seedSalt = 'mnemonic'.normalize('NFKD');
+
+    return pbkdf2Async(sha512, mnemonicNfkd, seedSalt, { c: 2048, dkLen: 64 }).then(seed =>
+        Buffer.from(seed),
+    );
 };
 
 const verifyCommitment = (entropy: string, commitment: string) => {
