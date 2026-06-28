@@ -35,6 +35,27 @@ export type CKBCellInput = Static<typeof CKBCellInput>;
 export const CKBCellInput = Type.Object({
     since: Type.Uint(),
     previousOutput: CKBOutPoint,
+    // Nervos DAO phase-2 withdrawal inputs only: positions in `headerDeps` of the
+    // deposit block header and of the withdrawing cell's including block header.
+    daoDepositHeaderIndex: Type.Optional(Type.Number()),
+    daoWithdrawHeaderIndex: Type.Optional(Type.Number()),
+});
+
+// A CKB block header (as returned by the `get_header` RPC). Supplied for Nervos
+// DAO withdrawals so the device can verify the compensation trustlessly.
+export type CKBBlockHeader = Static<typeof CKBBlockHeader>;
+export const CKBBlockHeader = Type.Object({
+    version: Type.Number(),
+    compactTarget: Type.Number(),
+    timestamp: Type.Uint(),
+    number: Type.Uint(),
+    epoch: Type.Uint(),
+    parentHash: Type.String(),
+    transactionsRoot: Type.String(),
+    proposalsHash: Type.String(),
+    extraHash: Type.String(),
+    dao: Type.String(),
+    nonce: Type.String(),
 });
 
 export type CKBCellDep = Static<typeof CKBCellDep>;
@@ -77,6 +98,11 @@ export const CKBSignTransaction = Type.Object({
     signGroupInputIndices: Type.Optional(Type.Array(Type.Number())),
     network: CKBNetwork,
     chunkify: Type.Optional(Type.Boolean()),
+    // Full block headers, one per `transaction.headerDeps` entry in the same
+    // order. Required when any input is a Nervos DAO withdrawing cell: the device
+    // re-hashes each header, checks it against the committed headerDeps, and reads
+    // the accumulated rate to verify the DAO compensation.
+    headers: Type.Optional(Type.Array(CKBBlockHeader)),
     // Previous transactions keyed by their hash (with or without 0x prefix). The
     // device re-hashes each to verify the spent input capacities and compute the
     // fee trustlessly. Optional: any input whose previous tx is not supplied here

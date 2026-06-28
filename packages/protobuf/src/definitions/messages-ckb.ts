@@ -13,6 +13,7 @@ export enum Enum_CKBTxRequestType {
     TXPREVINPUT = 6,
     TXPREVOUTPUT = 7,
     TXPREVCELLDEP = 8,
+    TXHEADER = 9,
 }
 
 export type EnumEnum_CKBTxRequestType = Static<typeof EnumEnum_CKBTxRequestType>;
@@ -28,6 +29,24 @@ export const CKBAddress = Type.Object(
         mac: Type.Optional(Type.String()),
     },
     { $id: 'CKBAddress' },
+);
+
+export type CKBBlockHeader = Static<typeof CKBBlockHeader>;
+export const CKBBlockHeader = Type.Object(
+    {
+        version: Type.Number(),
+        compact_target: Type.Number(),
+        timestamp: Type.Number(),
+        number: Type.Number(),
+        epoch: Type.Number(),
+        parent_hash: Type.String(),
+        transactions_root: Type.String(),
+        proposals_hash: Type.String(),
+        extra_hash: Type.String(),
+        dao: Type.String(),
+        nonce: Type.String(),
+    },
+    { $id: 'CKBBlockHeader' },
 );
 
 export type CKBCellDep = Static<typeof CKBCellDep>;
@@ -46,6 +65,8 @@ export const CKBCellInput = Type.Object(
         previous_output_tx_hash: Type.String(),
         previous_output_index: Type.Number(),
         since: Type.Optional(Type.Uint()),
+        dao_deposit_header_index: Type.Optional(Type.Number()),
+        dao_withdraw_header_index: Type.Optional(Type.Number()),
     },
     { $id: 'CKBCellInput' },
 );
@@ -107,6 +128,7 @@ export const CKBSignTx = Type.Object(
         chunkify: Type.Optional(Type.Boolean()),
         witnesses_count: Type.Optional(Type.Number()),
         sign_group_input_indices: Type.Array(Type.Number()),
+        header_deps: Type.Array(Type.String()),
     },
     { $id: 'CKBSignTx' },
 );
@@ -117,6 +139,14 @@ export const CKBTxAckCellDep = Type.Object(
         cell_dep: CKBCellDep,
     },
     { $id: 'CKBTxAckCellDep' },
+);
+
+export type CKBTxAckHeader = Static<typeof CKBTxAckHeader>;
+export const CKBTxAckHeader = Type.Object(
+    {
+        header: CKBBlockHeader,
+    },
+    { $id: 'CKBTxAckHeader' },
 );
 
 export type CKBTxAckInput = Static<typeof CKBTxAckInput>;

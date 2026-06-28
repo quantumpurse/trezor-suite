@@ -2,6 +2,7 @@ import type { CkbRawTransaction } from '@trezor/blockchain-link-types';
 import type { MethodPermission, PROTO } from '@trezor/connect-common';
 import { ERRORS } from '@trezor/connect-common/src/constants';
 import {
+    type CKBBlockHeader,
     CKBSignTransaction as CKBSignTransactionSchema,
     type CKBTransaction,
 } from '@trezor/connect-common/src/types/api/ckb';
@@ -38,6 +39,17 @@ const stripHex = (hex: string): string => (hex.startsWith('0x') ? hex.slice(2) :
 // the device's CKBTxRequestDetails.tx_hash (both are bare lowercase hex).
 const normHash = (hex: string): string => stripHex(hex).toLowerCase();
 
+// `get_header` returns the nonce big-endian, but the Molecule Header stores it
+// little-endian. Reverse the bytes so the device's header hash matches the chain.
+const nonceToLittleEndianHex = (nonceHex: string): string => {
+    const value = stripHex(nonceHex);
+    if (value.length > 32) {
+        throw ERRORS.TypedError('Method_InvalidParameter', 'CKB header nonce must be 16 bytes.');
+    }
+
+    return (value.padStart(32, '0').match(/../g) ?? []).reverse().join('');
+};
+
 type CkbNetwork = 'Mainnet' | 'Testnet';
 
 type CKBSignTxInitialParams = PROTO.CKBSignTx & { network: CkbNetwork };
@@ -46,6 +58,22 @@ const mapInput = (input: CKBTransaction['inputs'][number]): PROTO.CKBCellInput =
     previous_output_tx_hash: stripHex(input.previousOutput.txHash),
     previous_output_index: Number(input.previousOutput.index),
     since: String(input.since ?? '0'),
+    dao_deposit_header_index: input.daoDepositHeaderIndex,
+    dao_withdraw_header_index: input.daoWithdrawHeaderIndex,
+});
+
+const mapHeader = (header: CKBBlockHeader): PROTO.CKBBlockHeader => ({
+    version: header.version,
+    compact_target: header.compactTarget,
+    timestamp: String(header.timestamp),
+    number: String(header.number),
+    epoch: String(header.epoch),
+    parent_hash: stripHex(header.parentHash),
+    transactions_root: stripHex(header.transactionsRoot),
+    proposals_hash: stripHex(header.proposalsHash),
+    extra_hash: stripHex(header.extraHash),
+    dao: stripHex(header.dao),
+    nonce: nonceToLittleEndianHex(header.nonce),
 });
 
 const mapOutput = (
@@ -121,6 +149,7 @@ type ProcessContext = {
     outputs: PROTO.CKBCellOutput[];
     cellDeps: PROTO.CKBCellDep[];
     witnesses: PROTO.CKBTxAckWitness[];
+    headers: PROTO.CKBBlockHeader[];
     prevTxs: Record<string, PrevTxProto>;
 };
 
@@ -202,6 +231,11 @@ const processCkbTxRequest = async (
                 getItem(ctx.witnesses, requestIndex, 'witness'),
             ));
             break;
+        case 'TXHEADER':
+            ({ message: next } = await typedCall('CKBTxAckHeader', 'CKBTxRequest', {
+                header: getItem(ctx.headers, requestIndex, 'header'),
+            }));
+            break;
         case 'TXPREVMETA':
             ({ message: next } = await typedCall(
                 'CKBTxAckPrevMeta',
@@ -247,6 +281,7 @@ export default class CkbSignTransaction extends AbstractMethod<
     outputs: PROTO.CKBCellOutput[] = [];
     cellDeps: PROTO.CKBCellDep[] = [];
     witnesses: PROTO.CKBTxAckWitness[] = [];
+    headers: PROTO.CKBBlockHeader[] = [];
     prevTxs: Record<string, PrevTxProto> = {};
 
     constructor(message: MethodMessage<'ckbSignTransaction'>) {
@@ -262,6 +297,7 @@ export default class CkbSignTransaction extends AbstractMethod<
             witnesses: payloadWitnesses,
             signGroupInputIndices: payloadGroupIndices,
             prevTxs: payloadPrevTxs,
+            headers: payloadHeaders,
         } = payload;
 
         // Extend 3-segment account path to 5-segment address path (append /0/0)
@@ -271,13 +307,6 @@ export default class CkbSignTransaction extends AbstractMethod<
             throw ERRORS.TypedError(
                 'Method_InvalidParameter',
                 'Only CKB transaction version 0 is supported',
-            );
-        }
-
-        if (transaction.headerDeps.length > 0) {
-            throw ERRORS.TypedError(
-                'Method_InvalidParameter',
-                'CKB headerDeps are not supported yet',
             );
         }
 
@@ -348,6 +377,22 @@ export default class CkbSignTransaction extends AbstractMethod<
             prevTxs[normHash(hash)] = buildPrevTx(prevTx);
         }
 
+        // Headers align one-to-one with headerDeps; the device fetches them by
+        // index while verifying Nervos DAO compensation. Required whenever an
+        // input declares DAO header indices.
+        const headers = (payloadHeaders ?? []).map(mapHeader);
+        const needsHeaders = inputs.some(
+            input =>
+                input.dao_deposit_header_index !== undefined ||
+                input.dao_withdraw_header_index !== undefined,
+        );
+        if (needsHeaders && headers.length !== transaction.headerDeps.length) {
+            throw ERRORS.TypedError(
+                'Method_InvalidParameter',
+                'CKB Nervos DAO withdrawal requires one header per headerDeps entry.',
+            );
+        }
+
         const params: CKBSignTxInitialParams = {
             address_n: fullPath,
             network,
@@ -357,6 +402,9 @@ export default class CkbSignTransaction extends AbstractMethod<
             witnesses_count: witnesses.length,
             sign_group_input_indices: signGroupInputIndices,
             chunkify: typeof chunkify === 'boolean' ? chunkify : false,
+            // Committed in the device's tx hash. Empty for plain transfers;
+            // Nervos DAO withdrawals reference the deposit/withdraw block headers.
+            header_deps: transaction.headerDeps.map(stripHex),
         };
 
         super(message, params);
@@ -365,6 +413,7 @@ export default class CkbSignTransaction extends AbstractMethod<
         this.outputs = outputs;
         this.cellDeps = cellDeps;
         this.witnesses = witnesses;
+        this.headers = headers;
         this.prevTxs = prevTxs;
         this.requiredFirmwareCoins = [getCoinInfo(network === 'Testnet' ? 'tckb' : 'ckb')];
     }
@@ -431,6 +480,7 @@ export default class CkbSignTransaction extends AbstractMethod<
                 outputs: this.outputs,
                 cellDeps: this.cellDeps,
                 witnesses: this.witnesses,
+                headers: this.headers,
                 prevTxs: this.prevTxs,
             },
             message,
