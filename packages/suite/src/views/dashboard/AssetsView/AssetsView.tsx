@@ -144,7 +144,7 @@ export const AssetsView = () => {
             return allTokens;
         }, []);
 
-        const assetFailed = accounts.find(a => a.symbol === network.symbol && a.failed);
+        const assetFailed = accounts.find(f => f.symbol === network.symbol && f.failed);
 
         return {
             network,

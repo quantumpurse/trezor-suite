@@ -135,7 +135,6 @@ export const useSignVerifyForm = (isSignPage: boolean, account: Account) => {
         isSignPage,
         formValues.address,
         formValues.message,
-        formValues.hex,
         formValues.isElectrum,
         formValues.cardanoPubKeyCose,
     ]);

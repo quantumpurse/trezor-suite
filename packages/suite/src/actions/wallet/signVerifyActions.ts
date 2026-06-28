@@ -1,8 +1,5 @@
 import { selectSelectedDevice } from '@suite-common/device';
-import {
-    notificationsActions,
-    selectVisibleNotificationsByType,
-} from '@suite-common/toast-notifications';
+import { notificationsActions } from '@suite-common/toast-notifications';
 import { selectAddressDisplayType } from '@suite-common/wallet-core';
 import { AddressDisplayOptions } from '@suite-common/wallet-types';
 import {
@@ -231,26 +228,18 @@ export const showAddress =
 
 export const sign =
     (path: string | number[], message: string, hex = false, isElectrum = false, isCose = false) =>
-    (dispatch: Dispatch, getState: GetState) => {
-        const staleToasts = selectVisibleNotificationsByType(getState(), 'sign-message-error');
-        staleToasts.forEach(n => dispatch(notificationsActions.close(n.id)));
-
-        return getStateParams(getState)
+    (dispatch: Dispatch, getState: GetState) =>
+        getStateParams(getState)
             .then(signByNetwork(path, message, hex, isElectrum, isCose))
             .then(throwWhenFailed)
             .then(onSignSuccess(dispatch))
             .catch(onError(dispatch, 'sign-message-error'));
-    };
 
 export const verify =
     (address: string, message: string, signature: string, hex = false) =>
-    (dispatch: Dispatch, getState: GetState) => {
-        const staleToasts = selectVisibleNotificationsByType(getState(), 'verify-message-error');
-        staleToasts.forEach(n => dispatch(notificationsActions.close(n.id)));
-
-        return getStateParams(getState)
+    (dispatch: Dispatch, getState: GetState) =>
+        getStateParams(getState)
             .then(verifyByNetwork(address, message, signature, hex))
             .then(throwWhenFailed)
             .then(onVerifySuccess(dispatch))
             .catch(onError(dispatch, 'verify-message-error'));
-    };
