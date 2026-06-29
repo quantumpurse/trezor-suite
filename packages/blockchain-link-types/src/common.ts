@@ -265,6 +265,10 @@ export interface Transaction {
         };
     };
     tronSpecific?: TronChainExtraData;
+    ckbSpecific?: {
+        // 'deposit' when the tx creates a Nervos DAO cell, 'withdraw' when it spends one.
+        subtype: 'deposit' | 'withdraw';
+    };
 }
 
 /* Account */

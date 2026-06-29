@@ -3489,6 +3489,14 @@ export const messages = defineMessages({
         defaultMessage: 'Contract transaction',
         id: 'TR_CONTRACT_TRANSACTION',
     },
+    TR_CKB_DAO_DEPOSIT: {
+        defaultMessage: 'Nervos DAO deposit',
+        id: 'TR_CKB_DAO_DEPOSIT',
+    },
+    TR_CKB_DAO_WITHDRAWAL: {
+        defaultMessage: 'Nervos DAO withdrawal',
+        id: 'TR_CKB_DAO_WITHDRAWAL',
+    },
     TR_FAILED_TRANSACTION: {
         defaultMessage: 'Transaction failed',
         id: 'TR_FAILED_TRANSACTION',

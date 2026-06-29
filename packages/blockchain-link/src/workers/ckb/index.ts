@@ -73,6 +73,14 @@ const createBlockTimestampFetcher = (client: CccClient): BlockTimestampFetcher =
     };
 };
 
+// Nervos DAO type script code hash (same on Mainnet and Testnet).
+const NERVOS_DAO_TYPE_CODE_HASH =
+    '0x82d76d1b75fe2fd9a27dfbaa65a039221a380d76c926f378d3f81cf3e7e13f2e';
+
+const isNervosDaoCell = (output: ClientTransactionResponse['transaction']['outputs'][number]) =>
+    output.type?.codeHash.toLowerCase() === NERVOS_DAO_TYPE_CODE_HASH &&
+    output.type?.hashType === 'type';
+
 const mapTransaction = async ({
     txResponse,
     fetchTx,
@@ -90,6 +98,8 @@ const mapTransaction = async ({
     let myOutputSum = BigInt(0);
     let totalInputSum = BigInt(0);
     let totalOutputSum = BigInt(0);
+    let hasDaoInput = false;
+    let hasDaoOutput = false;
 
     const vin: Transaction['details']['vin'] = [];
     const vout: Transaction['details']['vout'] = [];
@@ -131,6 +141,11 @@ const mapTransaction = async ({
             if (isOwn) {
                 myInputSum += value;
             }
+            // Match by DAO type script, not ownership: the cell may sit on
+            // another of the account's derived addresses.
+            if (isNervosDaoCell(prevOutput)) {
+                hasDaoInput = true;
+            }
 
             vin.push({
                 n: i,
@@ -160,6 +175,9 @@ const mapTransaction = async ({
         totalOutputSum += value;
         if (isOwn) {
             myOutputSum += value;
+        }
+        if (isNervosDaoCell(output)) {
+            hasDaoOutput = true;
         }
 
         vout.push({
@@ -194,11 +212,19 @@ const mapTransaction = async ({
         }
     }
 
+    let daoSubtype: 'deposit' | 'withdraw' | undefined;
+    if (hasDaoInput) {
+        daoSubtype = 'withdraw';
+    } else if (hasDaoOutput) {
+        daoSubtype = 'deposit';
+    }
+
     const blockNum = txResponse.blockNumber ? Number(txResponse.blockNumber) : undefined;
     const blockTime = blockNum ? await getBlockTimestamp(blockNum) : undefined;
 
     return {
         type,
+        ...(daoSubtype ? { ckbSpecific: { subtype: daoSubtype } } : {}),
         txid: String(txObj.hash()),
         blockHeight: blockNum,
         blockHash: txResponse.blockHash ? String(txResponse.blockHash) : undefined,

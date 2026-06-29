@@ -147,6 +147,19 @@ export const TransactionHeader = ({ transaction, isPending }: TransactionHeaderP
         return <BlurUrls text={translationString(tronTransactionMessageId)} />;
     }
 
+    // Nervos DAO deposit / withdrawal
+    if (transaction.ckbSpecific?.subtype) {
+        return (
+            <Translation
+                id={
+                    transaction.ckbSpecific.subtype === 'deposit'
+                        ? 'TR_CKB_DAO_DEPOSIT'
+                        : 'TR_CKB_DAO_WITHDRAWAL'
+                }
+            />
+        );
+    }
+
     const solanaStakeType = transaction?.solanaSpecific?.stakeOperation?.type;
     if (solanaStakeType) {
         const translationId = getSolTransactionStakeTypeName(solanaStakeType);
