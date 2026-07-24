@@ -65,9 +65,9 @@ const mapInput = (input: CKBTransaction['inputs'][number]): PROTO.CKBCellInput =
 const mapHeader = (header: CKBBlockHeader): PROTO.CKBBlockHeader => ({
     version: header.version,
     compact_target: header.compactTarget,
-    timestamp: String(header.timestamp),
-    number: String(header.number),
-    epoch: String(header.epoch),
+    timestamp: Number(header.timestamp),
+    number: Number(header.number),
+    epoch: Number(header.epoch),
     parent_hash: stripHex(header.parentHash),
     transactions_root: stripHex(header.transactionsRoot),
     proposals_hash: stripHex(header.proposalsHash),
