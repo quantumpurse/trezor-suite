@@ -101,6 +101,7 @@ export const isAccountBasedNetwork = (symbol: NetworkSymbol) => {
 
         case 'bitcoin':
         case 'cardano':
+        case 'ckb':
             return false;
 
         default:
