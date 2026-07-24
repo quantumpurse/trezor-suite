@@ -4,6 +4,7 @@ import type {
     TrezorConnectBitcoin,
     TrezorConnectBlockchain,
     TrezorConnectCardano,
+    TrezorConnectCkb,
     TrezorConnectDevice,
     TrezorConnectEthereum,
     TrezorConnectEvolu,
@@ -24,6 +25,7 @@ type ConnectCallableMethodGroups = {
     bitcoin: readonly (keyof TrezorConnectBitcoin)[];
     ethereum: readonly (keyof TrezorConnectEthereum)[];
     cardano: readonly (keyof TrezorConnectCardano)[];
+    ckb: readonly (keyof TrezorConnectCkb)[];
     monero: readonly (keyof TrezorConnectMonero)[];
     ripple: readonly (keyof TrezorConnectRipple)[];
     solana: readonly (keyof TrezorConnectSolana)[];
@@ -115,6 +117,7 @@ const connectCallableMethodGroups = {
         'cardanoSignMessage',
         'cardanoComposeTransaction',
     ],
+    ckb: ['ckbGetAddress', 'ckbSignTransaction', 'ckbSignMessage', 'ckbVerifyMessage'],
     monero: [
         'moneroGetAddress',
         'moneroGetWatchKey',

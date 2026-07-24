@@ -74,6 +74,7 @@ export enum Enum_Capability {
     Capability_NFC = 23,
     Capability_Tron = 24,
     Capability_N4W1 = 25,
+    Capability_CKB = 28,
 }
 
 export type EnumEnum_Capability = Static<typeof EnumEnum_Capability>;

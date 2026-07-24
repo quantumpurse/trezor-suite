@@ -38,6 +38,8 @@ export const allowedDomains = [
     'xrplcluster.com', // XRP Ledger cluster, hosted by XRP Ledger Foundation
     'xrpl.ws', // XRP Ledger cluster, hosted by XRP Ledger Foundation
     's2.ripple.com', // XRP Ledger cluster, hosted by Ripple
+    'ckb.dev', // Nervos CKB public RPC/indexer domains
+    'ckbapp.dev', // Nervos CKB auxiliary public endpoints used by ckb-ccc
     ...(isDevEnv ? allowedDomainsDev : []),
 ];
 

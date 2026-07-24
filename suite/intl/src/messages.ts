@@ -2671,6 +2671,11 @@ export const messages = defineMessages({
         defaultMessage: 'Ledger accounts',
         id: 'TR_CARDANO_LEDGER_ACCOUNTS',
     },
+    TR_ECDSA_ACCOUNTS: {
+        defaultMessage: 'ECDSA accounts',
+        id: 'TR_ECDSA_ACCOUNTS',
+    },
+
     TR_ACCOUNT_TYPE_LEGACY: {
         defaultMessage: 'Legacy',
         id: 'TR_ACCOUNT_TYPE_LEGACY',
@@ -2706,6 +2711,25 @@ export const messages = defineMessages({
         id: 'TR_ACCOUNT_TYPE_SEGWIT',
         dynamic: true,
     },
+    TR_ACCOUNT_TYPE_ECDSA: {
+        defaultMessage: 'ECDSA',
+        id: 'TR_ACCOUNT_TYPE_ECDSA',
+        dynamic: true,
+    },
+
+    TR_ACCOUNT_TYPE_ECDSA_DESC: {
+        defaultMessage:
+            'CKB accounts use ECDSA secp256k1 signing with a standard BIP44 account path. These addresses are represented in Bech32m format.',
+        id: 'TR_ACCOUNT_TYPE_ECDSA_DESC',
+        dynamic: true,
+    },
+
+    TR_ACCOUNT_TYPE_ECDSA_TECH: {
+        defaultMessage: 'BIP44, secp256k1, Bech32m',
+        id: 'TR_ACCOUNT_TYPE_ECDSA_TECH',
+        dynamic: true,
+    },
+
     TR_LOG: {
         defaultMessage: 'Application log',
         description: 'application event and error',
@@ -3464,6 +3488,14 @@ export const messages = defineMessages({
     TR_CONTRACT_TRANSACTION: {
         defaultMessage: 'Contract transaction',
         id: 'TR_CONTRACT_TRANSACTION',
+    },
+    TR_CKB_DAO_DEPOSIT: {
+        defaultMessage: 'Nervos DAO deposit',
+        id: 'TR_CKB_DAO_DEPOSIT',
+    },
+    TR_CKB_DAO_WITHDRAWAL: {
+        defaultMessage: 'Nervos DAO withdrawal',
+        id: 'TR_CKB_DAO_WITHDRAWAL',
     },
     TR_FAILED_TRANSACTION: {
         defaultMessage: 'Transaction failed',

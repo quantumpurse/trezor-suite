@@ -1,7 +1,7 @@
 import type { CoinInfo, Features } from '@trezor/connect-common';
 import { DeviceModelInternal } from '@trezor/device-utils';
 
-import { getAllNetworks } from '../../data/coinInfo';
+import { getAllNetworks, getCoinInfo } from '../../data/coinInfo';
 import {
     getUnavailableCapabilities,
     parseCapabilities,
@@ -138,6 +138,7 @@ describe('utils/deviceFeaturesUtils', () => {
                 base: 'update-required',
                 bnb: 'no-support',
                 bsc: 'update-required',
+                ckb: 'no-support',
                 crw: 'update-required',
                 maid: 'no-capability',
                 monero: 'no-support',
@@ -149,6 +150,7 @@ describe('utils/deviceFeaturesUtils', () => {
                 sol: 'no-support',
                 dsol: 'no-support',
                 sys: 'update-required',
+                tckb: 'no-support',
                 thod: 'update-required',
                 tppc: 'update-required',
                 trvn: 'update-required',
@@ -180,6 +182,7 @@ describe('utils/deviceFeaturesUtils', () => {
                 arb: 'update-required',
                 base: 'update-required',
                 bsc: 'update-required',
+                ckb: 'no-support',
                 maid: 'no-capability',
                 monero: 'update-required',
                 pol: 'update-required',
@@ -194,6 +197,7 @@ describe('utils/deviceFeaturesUtils', () => {
                 usdt: 'no-capability',
                 sol: 'update-required',
                 dsol: 'update-required',
+                tckb: 'no-support',
                 chunkify: 'update-required',
                 evmApproval: 'update-required',
                 evolu: 'no-support',
@@ -210,6 +214,7 @@ describe('utils/deviceFeaturesUtils', () => {
             expect(getUnavailableCapabilities(featT2B1, coins2)).toEqual({
                 btg: 'no-support',
                 tbtg: 'no-support',
+                ckb: 'no-support',
                 dash: 'no-support',
                 tdash: 'no-support',
                 dcr: 'no-support',
@@ -220,6 +225,7 @@ describe('utils/deviceFeaturesUtils', () => {
                 omni: 'no-capability',
                 sol: 'update-required',
                 dsol: 'update-required',
+                tckb: 'no-support',
                 thod: 'update-required',
                 tropicDeviceAuthentication: 'no-support',
                 mcuDeviceAuthentication: 'no-support',
@@ -378,6 +384,28 @@ describe('utils/deviceFeaturesUtils', () => {
                 monero: 'no-support',
                 ...T1B1_UPDATE_REQUIRED,
             });
+        });
+
+        it('does not require dedicated capability for CKB on supported firmware', () => {
+            const ckbNetwork = getCoinInfo('ckb');
+            const tckbNetwork = getCoinInfo('tckb');
+
+            if (!ckbNetwork || !tckbNetwork) {
+                throw new Error('CKB networks not found');
+            }
+
+            const ckbNetworks: CoinInfo[] = [ckbNetwork, tckbNetwork];
+            const features = {
+                major_version: 3,
+                minor_version: 0,
+                patch_version: 0,
+                capabilities: parseCapabilities({
+                    major_version: 3,
+                } as Features),
+                internal_model: DeviceModelInternal.T3W1,
+            } as Features;
+
+            expect(getUnavailableCapabilities(features, ckbNetworks)).toEqual({});
         });
     });
 

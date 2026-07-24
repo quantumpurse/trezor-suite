@@ -3,6 +3,7 @@ import { DeviceModelInternal, getFirmwareOrBootloaderVersionArray } from '@trezo
 import type { MessagesSchema as PROTO } from '@trezor/protobuf';
 import { isArrayMember, versionUtils } from '@trezor/utils';
 
+import { isCkbCoin } from './coinInfoUtils';
 import { config } from '../data/config';
 
 const DEFAULT_CAPABILITIES_T1: PROTO.Capability[] = [
@@ -81,6 +82,9 @@ export const getUnavailableCapabilities = (features: Features, coins: CoinInfo[]
         }
         if (info.type === 'ethereum') {
             return !capabilities.includes('Capability_Ethereum');
+        }
+        if (isCkbCoin(info)) {
+            return !capabilities.includes('Capability_CKB');
         }
         // misc
         if ((info.shortcut === 'TRX' || info.shortcut === 'tTRX') && info.type === 'misc') {

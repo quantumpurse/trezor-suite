@@ -3,6 +3,7 @@
 import type { BitcoinNetworkInfo, CoinInfo } from '@trezor/connect-common';
 import { ERRORS } from '@trezor/connect-common/src/constants';
 
+import { isCkbCoin } from './coinInfoUtils';
 import { fromHardened, toHardened } from './pathUtils';
 import { getCoinName } from '../data/coinInfo';
 
@@ -40,6 +41,9 @@ export const getAccountAddressN = (
         // FW bug: https://github.com/trezor/trezor-firmware/issues/321
         return [toHardened(options.purpose), toHardened(144), toHardened(index), 0, 0];
     }
+    if (isCkbCoin(coinInfo)) {
+        return [toHardened(options.purpose), toHardened(options.coinType), toHardened(index)];
+    }
 
     // TODO: cover all misc coins or throw error
     return [toHardened(options.purpose), toHardened(options.coinType), toHardened(index), 0, 0];
@@ -60,6 +64,11 @@ export const getAccountLabel = (path: number[], coinInfo: CoinInfo) => {
         }
 
         return `${prefix} account #${account + 1}`;
+    }
+    if (isCkbCoin(coinInfo)) {
+        const account = fromHardened(path[2]);
+
+        return `account #${account + 1}`;
     }
     const account = fromHardened(path[4]);
 
@@ -111,4 +120,7 @@ export const getPublicKeyLabel = (path: number[], coinInfo?: BitcoinNetworkInfo)
 };
 
 export const isUtxoBased = (coinInfo: CoinInfo) =>
-    coinInfo.type === 'bitcoin' || coinInfo.shortcut === 'ADA' || coinInfo.shortcut === 'tADA';
+    coinInfo.type === 'bitcoin' ||
+    coinInfo.shortcut === 'ADA' ||
+    coinInfo.shortcut === 'tADA' ||
+    isCkbCoin(coinInfo);

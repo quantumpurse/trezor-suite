@@ -63,6 +63,21 @@ import {
     CardanoTxWitnessResponse,
 } from './messages-cardano';
 import {
+    CKBAddress,
+    CKBGetAddress,
+    CKBMessageSignature,
+    CKBSignMessage,
+    CKBSignTx,
+    CKBTxAckCellDep,
+    CKBTxAckHeader,
+    CKBTxAckInput,
+    CKBTxAckOutput,
+    CKBTxAckPrevMeta,
+    CKBTxAckWitness,
+    CKBTxRequest,
+    CKBVerifyMessage,
+} from './messages-ckb';
+import {
     ButtonAck,
     ButtonRequest,
     Deprecated_PassphraseStateAck,
@@ -306,6 +321,7 @@ export * from './messages-bitcoin';
 export * from './messages-ble';
 export * from './messages-bootloader';
 export * from './messages-cardano';
+export * from './messages-ckb';
 export * from './messages-crypto';
 export * from './messages-management';
 export * from './messages-debug';
@@ -397,6 +413,19 @@ export const MessageType = Type.Object(
         CardanoMessageDataRequest,
         CardanoMessageDataResponse,
         CardanoMessageSignature,
+        CKBGetAddress,
+        CKBAddress,
+        CKBSignMessage,
+        CKBMessageSignature,
+        CKBVerifyMessage,
+        CKBSignTx,
+        CKBTxRequest,
+        CKBTxAckInput,
+        CKBTxAckOutput,
+        CKBTxAckCellDep,
+        CKBTxAckPrevMeta,
+        CKBTxAckHeader,
+        CKBTxAckWitness,
         CipherKeyValue,
         CipheredKeyValue,
         SignIdentity,
@@ -650,6 +679,16 @@ export type WireInMessage =
     | 'CardanoTxHostAck'
     | 'CardanoSignMessageInit'
     | 'CardanoMessageDataResponse'
+    | 'CKBGetAddress'
+    | 'CKBSignMessage'
+    | 'CKBVerifyMessage'
+    | 'CKBSignTx'
+    | 'CKBTxAckInput'
+    | 'CKBTxAckOutput'
+    | 'CKBTxAckCellDep'
+    | 'CKBTxAckPrevMeta'
+    | 'CKBTxAckHeader'
+    | 'CKBTxAckWitness'
     | 'CipherKeyValue'
     | 'SignIdentity'
     | 'GetECDHSessionKey'
@@ -781,6 +820,9 @@ export type WireOutMessage =
     | 'CardanoSignTxFinished'
     | 'CardanoMessageDataRequest'
     | 'CardanoMessageSignature'
+    | 'CKBAddress'
+    | 'CKBMessageSignature'
+    | 'CKBTxRequest'
     | 'CipheredKeyValue'
     | 'SignedIdentity'
     | 'ECDHSessionKey'

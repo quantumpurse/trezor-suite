@@ -53,6 +53,10 @@ import {
     composeCardanoTransactionFeeLevelsThunk,
     signCardanoSendFormTransactionThunk,
 } from './sendFormCardanoThunks';
+import {
+    composeCkbTransactionFeeLevelsThunk,
+    signCkbSendFormTransactionThunk,
+} from './sendFormCkbThunks';
 import { SEND_MODULE_PREFIX } from './sendFormConstants';
 import {
     composeEthereumTransactionFeeLevelsThunk,
@@ -157,6 +161,7 @@ type CoinSpecificComposeResponse = ActionsFromAsyncThunk<
     | typeof composeCardanoTransactionFeeLevelsThunk
     | typeof composeSolanaTransactionFeeLevelsThunk
     | typeof composeTronTransactionFeeLevelsThunk
+    | typeof composeCkbTransactionFeeLevelsThunk
 >;
 
 export const composeSendFormTransactionFeeLevelsThunk = createThunk<
@@ -204,6 +209,13 @@ export const composeSendFormTransactionFeeLevelsThunk = createThunk<
                     formState,
                     composeContext,
                     isNetworkReserveEnabled,
+                }),
+            );
+        } else if (networkType === 'ckb') {
+            response = await dispatch(
+                composeCkbTransactionFeeLevelsThunk({
+                    formState,
+                    composeContext,
                 }),
             );
         } else if (networkType === 'tron') {
@@ -520,6 +532,7 @@ type CoinSpecificSignResponse = ActionsFromAsyncThunk<
     | typeof signRippleStellarSendFormTransactionThunk
     | typeof signSolanaSendFormTransactionThunk
     | typeof signTronSendFormTransactionThunk
+    | typeof signCkbSendFormTransactionThunk
 >;
 
 type SignTransactionThunkParams = {
@@ -575,6 +588,8 @@ export const signTransactionThunk = createThunk<
                 response = await dispatch(signEthereumSendFormTransactionThunk(thunkArguments));
             } else if (networkType === 'solana') {
                 response = await dispatch(signSolanaSendFormTransactionThunk(thunkArguments));
+            } else if (networkType === 'ckb') {
+                response = await dispatch(signCkbSendFormTransactionThunk(thunkArguments));
             } else if (['ripple', 'stellar'].includes(networkType)) {
                 response = await dispatch(
                     signRippleStellarSendFormTransactionThunk(thunkArguments),

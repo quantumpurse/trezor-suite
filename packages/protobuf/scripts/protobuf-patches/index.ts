@@ -44,6 +44,7 @@ export const ENUM_KEYS = [
     'InputScriptType',
     'OutputScriptType',
     'RequestType',
+    'CKBTxRequestType',
     'BackupType',
     'Capability',
     'SafetyCheckLevel',
@@ -272,6 +273,8 @@ export const TYPE_PATCH = {
     'MoneroTransferDetails.additional_tx_pub_keys': 'Uint8Array',
     'ThpDeviceProperties.pairing_methods': '(keyof typeof ThpPairingMethod)',
     'PaymentRequest.amount': 'string',
+    'CKBCellInput.since': UINT_TYPE,
+    'CKBCellOutput.capacity': UINT_TYPE,
 };
 
 export const readPatch = (file: string) => {

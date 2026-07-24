@@ -1,0 +1,685 @@
+import {
+    Address,
+    type Client as CccClient,
+    ClientPublicMainnet,
+    ClientPublicTestnet,
+} from '@ckb-ccc/core';
+
+import type {
+    AccountInfo,
+    CkbRawTransaction,
+    Response,
+    Transaction,
+    Utxo,
+} from '@trezor/blockchain-link-types';
+import { MESSAGES, RESPONSES } from '@trezor/blockchain-link-types/src/constants';
+import { CustomError } from '@trezor/blockchain-link-types/src/constants/errors';
+import type * as MessageTypes from '@trezor/blockchain-link-types/src/messages';
+
+import { BaseWorker, CONTEXT, type ContextType } from '../baseWorker';
+
+type Context = ContextType<CccClient>;
+type Request<T> = T & Context;
+
+const CKB_DECIMALS = 8;
+const DEFAULT_PAGE_SIZE = 25;
+
+type ClientTransactionResponse = NonNullable<Awaited<ReturnType<CccClient['getTransaction']>>>;
+type TransactionFetcher = (hash: string) => Promise<ClientTransactionResponse | undefined>;
+type BlockTimestampFetcher = (blockNum: number) => Promise<number | undefined>;
+type AccountHistoryTransaction = Transaction & { blockTime: number };
+
+const normalizeTxHash = (hash: string) => (hash.startsWith('0x') ? hash : `0x${hash}`);
+
+const createTransactionFetcher = (client: CccClient): TransactionFetcher => {
+    const txCache = new Map<string, Awaited<ReturnType<typeof client.getTransaction>>>();
+
+    return async hash => {
+        const normalizedHash = normalizeTxHash(hash);
+        const cached = txCache.get(normalizedHash);
+        if (cached !== undefined) {
+            return cached ?? undefined;
+        }
+
+        const result = await client.getTransaction(normalizedHash);
+        txCache.set(normalizedHash, result);
+
+        return result ?? undefined;
+    };
+};
+
+const createBlockTimestampFetcher = (client: CccClient): BlockTimestampFetcher => {
+    const blockTimestampCache = new Map<number, number>();
+
+    return async (blockNum: number) => {
+        const cached = blockTimestampCache.get(blockNum);
+        if (cached !== undefined) {
+            return cached;
+        }
+
+        try {
+            const header = await client.getHeaderByNumber(blockNum);
+            if (header) {
+                const timestamp = Number(header.timestamp) / 1000;
+                blockTimestampCache.set(blockNum, timestamp);
+
+                return timestamp;
+            }
+        } catch {
+            // ignored
+        }
+
+        return undefined;
+    };
+};
+
+// Nervos DAO type script code hash (same on Mainnet and Testnet).
+const NERVOS_DAO_TYPE_CODE_HASH =
+    '0x82d76d1b75fe2fd9a27dfbaa65a039221a380d76c926f378d3f81cf3e7e13f2e';
+
+const isNervosDaoCell = (output: ClientTransactionResponse['transaction']['outputs'][number]) =>
+    output.type?.codeHash.toLowerCase() === NERVOS_DAO_TYPE_CODE_HASH &&
+    output.type?.hashType === 'type';
+
+const mapTransaction = async ({
+    txResponse,
+    fetchTx,
+    getBlockTimestamp,
+    ownLockScript,
+}: {
+    txResponse: ClientTransactionResponse;
+    fetchTx: TransactionFetcher;
+    getBlockTimestamp: BlockTimestampFetcher;
+    ownLockScript?: Awaited<ReturnType<typeof Address.fromString>>['script'];
+}): Promise<Transaction> => {
+    const txObj = txResponse.transaction;
+
+    let myInputSum = BigInt(0);
+    let myOutputSum = BigInt(0);
+    let totalInputSum = BigInt(0);
+    let totalOutputSum = BigInt(0);
+    let hasDaoInput = false;
+    let hasDaoOutput = false;
+
+    const vin: Transaction['details']['vin'] = [];
+    const vout: Transaction['details']['vout'] = [];
+
+    for (let i = 0; i < txObj.inputs.length; i++) {
+        const input = txObj.inputs[i];
+        const prevHash = String(input.previousOutput.txHash);
+        const prevIndex = Number(input.previousOutput.index);
+
+        if (/^0x0+$/.test(prevHash)) {
+            vin.push({
+                n: i,
+                addresses: [],
+                isAddress: false,
+                coinbase: 'cellbase',
+            });
+            continue;
+        }
+
+        try {
+            const prevTxResponse = await fetchTx(prevHash);
+            const prevOutput = prevTxResponse?.transaction.outputs[prevIndex];
+
+            if (!prevOutput) {
+                vin.push({
+                    n: i,
+                    txid: prevHash,
+                    vout: prevIndex,
+                    addresses: [],
+                    isAddress: false,
+                });
+                continue;
+            }
+
+            const value = BigInt(prevOutput.capacity);
+            const isOwn = ownLockScript ? prevOutput.lock.eq(ownLockScript) : undefined;
+            totalInputSum += value;
+
+            if (isOwn) {
+                myInputSum += value;
+            }
+            // Match by DAO type script, not ownership: the cell may sit on
+            // another of the account's derived addresses.
+            if (isNervosDaoCell(prevOutput)) {
+                hasDaoInput = true;
+            }
+
+            vin.push({
+                n: i,
+                txid: prevHash,
+                vout: prevIndex,
+                addresses: [],
+                isAddress: true,
+                ...(typeof isOwn === 'boolean' ? { isOwn } : {}),
+                value: value.toString(),
+            });
+        } catch {
+            vin.push({
+                n: i,
+                txid: prevHash,
+                vout: prevIndex,
+                addresses: [],
+                isAddress: false,
+            });
+        }
+    }
+
+    for (let i = 0; i < txObj.outputs.length; i++) {
+        const output = txObj.outputs[i];
+        const value = BigInt(output.capacity);
+        const isOwn = ownLockScript ? output.lock.eq(ownLockScript) : undefined;
+
+        totalOutputSum += value;
+        if (isOwn) {
+            myOutputSum += value;
+        }
+        if (isNervosDaoCell(output)) {
+            hasDaoOutput = true;
+        }
+
+        vout.push({
+            n: i,
+            addresses: [],
+            isAddress: true,
+            ...(typeof isOwn === 'boolean' ? { isOwn } : {}),
+            value: value.toString(),
+        });
+    }
+
+    const feeBig = totalInputSum > totalOutputSum ? totalInputSum - totalOutputSum : BigInt(0);
+    const fee = feeBig.toString();
+
+    let type: Transaction['type'] = 'unknown';
+    let amount = '0';
+
+    if (ownLockScript) {
+        if (
+            myInputSum > BigInt(0) &&
+            myInputSum === totalInputSum &&
+            myOutputSum === totalOutputSum
+        ) {
+            type = 'self';
+            amount = fee;
+        } else if (myInputSum > myOutputSum) {
+            type = 'sent';
+            amount = (myInputSum - myOutputSum - feeBig).toString();
+        } else if (myOutputSum > BigInt(0)) {
+            type = 'recv';
+            amount = (myOutputSum - myInputSum).toString();
+        }
+    }
+
+    let daoSubtype: 'deposit' | 'withdraw' | undefined;
+    if (hasDaoInput) {
+        daoSubtype = 'withdraw';
+    } else if (hasDaoOutput) {
+        daoSubtype = 'deposit';
+    }
+
+    const blockNum = txResponse.blockNumber ? Number(txResponse.blockNumber) : undefined;
+    const blockTime = blockNum ? await getBlockTimestamp(blockNum) : undefined;
+
+    return {
+        type,
+        ...(daoSubtype ? { ckbSpecific: { subtype: daoSubtype } } : {}),
+        txid: String(txObj.hash()),
+        blockHeight: blockNum,
+        blockHash: txResponse.blockHash ? String(txResponse.blockHash) : undefined,
+        blockTime,
+        amount,
+        fee,
+        targets: [],
+        tokens: [],
+        internalTransfers: [],
+        details: {
+            vin,
+            vout,
+            size: 0,
+            totalInput: totalInputSum.toString(),
+            totalOutput: totalOutputSum.toString(),
+        },
+    };
+};
+
+const getLockScriptTransactions = async ({
+    lockScript,
+    client,
+    page,
+    pageSize,
+}: {
+    lockScript: Awaited<ReturnType<typeof Address.fromString>>['script'];
+    client: CccClient;
+    page?: number;
+    pageSize: number;
+}) => {
+    const fetchTx = createTransactionFetcher(client);
+    const getBlockTimestamp = createBlockTimestampFetcher(client);
+    const transactions: AccountHistoryTransaction[] = [];
+
+    let total = 0;
+    const start = Math.max(0, ((page ?? 1) - 1) * pageSize);
+    const end = start + pageSize;
+
+    for await (const tx of client.findTransactionsByLock(lockScript, undefined, true, 'desc')) {
+        const txResponse = await fetchTx(String(tx.txHash));
+        if (!txResponse) {
+            continue;
+        }
+
+        const blockNum = txResponse.blockNumber ? Number(txResponse.blockNumber) : undefined;
+        const blockTime = blockNum ? await getBlockTimestamp(blockNum) : undefined;
+
+        if (!blockTime) {
+            continue;
+        }
+
+        if (total >= start && total < end) {
+            transactions.push(
+                await mapTransaction({
+                    txResponse,
+                    fetchTx,
+                    getBlockTimestamp,
+                    ownLockScript: lockScript,
+                }).then(mappedTransaction => ({
+                    ...mappedTransaction,
+                    blockTime,
+                })),
+            );
+        }
+
+        total++;
+    }
+
+    return {
+        total,
+        transactions,
+    };
+};
+
+const getInfo = async (request: Request<MessageTypes.GetInfo>) => {
+    const client = await request.connect();
+    const tip = await client.getTip();
+
+    return {
+        type: RESPONSES.GET_INFO,
+        payload: {
+            url: client.url,
+            name: 'CKB',
+            shortcut: 'CKB',
+            decimals: CKB_DECIMALS,
+            testnet: client.addressPrefix === 'ckt',
+            version: '0.1.0',
+            network: client.addressPrefix === 'ckt' ? 'testnet' : 'mainnet',
+            blockHeight: Number(tip),
+            blockHash: '0x',
+        },
+    } as const;
+};
+
+const getAccountInfo = async (request: Request<MessageTypes.GetAccountInfo>) => {
+    const { payload } = request;
+    const client = await request.connect();
+
+    const account: AccountInfo = {
+        descriptor: payload.descriptor,
+        balance: '0',
+        availableBalance: '0',
+        empty: true,
+        history: {
+            total: -1,
+            unconfirmed: 0,
+            transactions: undefined,
+        },
+    };
+
+    try {
+        const address = await Address.fromString(payload.descriptor, client);
+        const lockScript = address.script;
+
+        const balance = await client.getBalanceSingle(lockScript);
+        const balanceStr = balance.toString();
+
+        account.balance = balanceStr;
+        account.availableBalance = balanceStr;
+
+        if (payload.details === 'txs') {
+            try {
+                const pageSize = payload.pageSize || DEFAULT_PAGE_SIZE;
+                const pageIndex = payload.page || 1;
+                const { total, transactions } = await getLockScriptTransactions({
+                    lockScript,
+                    client,
+                    page: pageIndex,
+                    pageSize,
+                });
+
+                account.history = {
+                    total,
+                    unconfirmed: 0,
+                    transactions,
+                };
+                account.page = {
+                    index: pageIndex,
+                    size: pageSize,
+                    total: Math.ceil(total / pageSize),
+                };
+            } catch {
+                account.history = {
+                    total: 0,
+                    unconfirmed: 0,
+                    transactions: [],
+                };
+            }
+        }
+
+        account.empty = balance === BigInt(0) && account.history.total <= 0;
+    } catch (error: unknown) {
+        // If account doesn't exist or other error, return empty account
+        if (
+            error instanceof Error &&
+            (error.message.includes('not found') || error.message.includes('Unknown'))
+        ) {
+            return {
+                type: RESPONSES.GET_ACCOUNT_INFO,
+                payload: account,
+            } as const;
+        }
+        throw error;
+    }
+
+    return {
+        type: RESPONSES.GET_ACCOUNT_INFO,
+        payload: account,
+    } as const;
+};
+
+const getTransaction = async ({ connect, payload }: Request<MessageTypes.GetTransaction>) => {
+    const client = await connect();
+    const fetchTx = createTransactionFetcher(client);
+    const getBlockTimestamp = createBlockTimestampFetcher(client);
+    const txResponse = await fetchTx(payload);
+
+    if (!txResponse) {
+        throw new CustomError('Transaction', 'Transaction not found');
+    }
+
+    return {
+        type: RESPONSES.GET_TRANSACTION,
+        payload: await mapTransaction({
+            txResponse,
+            fetchTx,
+            getBlockTimestamp,
+        }),
+    } as const;
+};
+
+// Reuses the generic getTransactionHex message to serve a previous transaction in
+// its CKB-native shape; the normalized getTransaction response drops
+// capacity/lock/cellDeps that connect's signing needs. Decoding CKB's molecule
+// serialization in connect would need a molecule parser, so the "hex" payload is
+// the native tx as JSON instead. CCC's depType ("depGroup") is mapped to the device
+// wording ("dep_group"); 64-bit values are stringified for serialization.
+const getTransactionHex = async ({ connect, payload }: Request<MessageTypes.GetTransactionHex>) => {
+    const client = await connect();
+    const fetchTx = createTransactionFetcher(client);
+    const txResponse = await fetchTx(payload);
+
+    if (!txResponse) {
+        throw new CustomError('Transaction', 'Transaction not found');
+    }
+
+    const { transaction: tx } = txResponse;
+    const mapScript = (script: CkbRawTransaction['outputs'][number]['lock']) => ({
+        codeHash: script.codeHash,
+        hashType: script.hashType,
+        args: script.args,
+    });
+
+    const raw: CkbRawTransaction = {
+        version: Number(tx.version),
+        cellDeps: tx.cellDeps.map(dep => ({
+            outPoint: {
+                txHash: dep.outPoint.txHash,
+                index: Number(dep.outPoint.index),
+            },
+            depType: dep.depType === 'depGroup' ? 'dep_group' : 'code',
+        })),
+        headerDeps: tx.headerDeps,
+        inputs: tx.inputs.map(input => ({
+            since: String(input.since),
+            previousOutput: {
+                txHash: input.previousOutput.txHash,
+                index: Number(input.previousOutput.index),
+            },
+        })),
+        outputs: tx.outputs.map(output => ({
+            capacity: String(output.capacity),
+            lock: mapScript(output.lock),
+            type: output.type ? mapScript(output.type) : undefined,
+        })),
+        outputsData: tx.outputsData,
+    };
+
+    return {
+        type: RESPONSES.GET_TRANSACTION_HEX,
+        payload: JSON.stringify(raw),
+    } as const;
+};
+
+const pushTransaction = async ({ connect, payload }: Request<MessageTypes.PushTransaction>) => {
+    const client = await connect();
+    const txHash = await client.sendTransactionNoCache(JSON.parse(payload.hex));
+
+    return {
+        type: RESPONSES.PUSH_TRANSACTION,
+        payload: String(txHash),
+    } as const;
+};
+
+let blockPollInterval: ReturnType<typeof setInterval> | undefined;
+
+const subscribeBlock = async (ctx: Context) => {
+    if (!ctx.state.getSubscription('block')) {
+        ctx.state.addSubscription('block');
+
+        const client = await ctx.connect();
+        let lastTip = Number(await client.getTip());
+
+        blockPollInterval = setInterval(async () => {
+            try {
+                const currentTip = Number(await client.getTip());
+                if (currentTip > lastTip) {
+                    lastTip = currentTip;
+                    ctx.post({
+                        id: -1,
+                        type: RESPONSES.NOTIFICATION,
+                        payload: {
+                            type: 'block',
+                            payload: {
+                                blockHeight: currentTip,
+                                blockHash: '0x',
+                            },
+                        },
+                    });
+                }
+            } catch {
+                // ignored
+            }
+        }, 15000);
+    }
+
+    return { subscribed: true };
+};
+
+const unsubscribeBlock = ({ state }: Context) => {
+    if (blockPollInterval) {
+        clearInterval(blockPollInterval);
+        blockPollInterval = undefined;
+    }
+    state.removeSubscription('block');
+
+    return { subscribed: false };
+};
+
+const subscribe = async (request: Request<MessageTypes.Subscribe>) => {
+    const { payload } = request;
+
+    switch (payload.type) {
+        case 'block':
+            return {
+                type: RESPONSES.SUBSCRIBE,
+                payload: await subscribeBlock(request),
+            } as const;
+        case 'accounts':
+        case 'addresses':
+            return {
+                type: RESPONSES.SUBSCRIBE,
+                payload: { subscribed: false },
+            } as const;
+        default:
+            throw new CustomError('invalid_param', '+type');
+    }
+};
+
+const unsubscribe = (request: Request<MessageTypes.Unsubscribe>) => {
+    const { payload } = request;
+
+    switch (payload.type) {
+        case 'block':
+            return {
+                type: RESPONSES.UNSUBSCRIBE,
+                payload: unsubscribeBlock(request),
+            } as const;
+        case 'accounts':
+        case 'addresses':
+            return {
+                type: RESPONSES.UNSUBSCRIBE,
+                payload: { subscribed: false },
+            } as const;
+        default:
+            throw new CustomError('invalid_param', '+type');
+    }
+};
+
+const getAccountUtxo = async (request: Request<MessageTypes.GetAccountUtxo>) => {
+    const descriptor = request.payload;
+    const client = await request.connect();
+    const fetchTx = createTransactionFetcher(client);
+    const tip = Number(await client.getTip());
+
+    try {
+        const address = await Address.fromString(descriptor, client);
+        const lockScript = address.script;
+
+        const utxos: Utxo[] = [];
+        for await (const cell of client.findCellsByLock(lockScript, undefined, true)) {
+            const txResponse = await fetchTx(String(cell.outPoint.txHash));
+            const blockHeight = txResponse?.blockNumber ? Number(txResponse.blockNumber) : 0;
+            const confirmations = blockHeight > 0 ? Math.max(0, tip - blockHeight + 1) : 0;
+
+            utxos.push({
+                txid: String(cell.outPoint.txHash).replace(/^0x/, ''),
+                vout: Number(cell.outPoint.index),
+                amount: cell.cellOutput.capacity.toString(),
+                blockHeight,
+                address: descriptor,
+                path: '',
+                confirmations,
+            });
+        }
+
+        return {
+            type: RESPONSES.GET_ACCOUNT_UTXO,
+            payload: utxos,
+        } as const;
+    } catch {
+        return {
+            type: RESPONSES.GET_ACCOUNT_UTXO,
+            payload: [] as Utxo[],
+        } as const;
+    }
+};
+
+const onRequest = (request: Request<MessageTypes.Message>) => {
+    switch (request.type) {
+        case MESSAGES.GET_INFO:
+            return getInfo(request);
+        case MESSAGES.GET_ACCOUNT_INFO:
+            return getAccountInfo(request);
+        case MESSAGES.GET_ACCOUNT_UTXO:
+            return getAccountUtxo(request);
+        case MESSAGES.GET_TRANSACTION:
+            return getTransaction(request);
+        case MESSAGES.GET_TRANSACTION_HEX:
+            return getTransactionHex(request);
+        case MESSAGES.PUSH_TRANSACTION:
+            return pushTransaction(request);
+        case MESSAGES.SUBSCRIBE:
+            return subscribe(request);
+        case MESSAGES.UNSUBSCRIBE:
+            return unsubscribe(request);
+        default:
+            throw new CustomError('worker_unknown_request', `+${request.type}`);
+    }
+};
+
+class CkbWorker extends BaseWorker<CccClient> {
+    protected isConnected(client: CccClient | undefined): client is CccClient {
+        return client !== undefined;
+    }
+
+    async tryConnect(url: string): Promise<CccClient> {
+        const isTestnet =
+            url.includes('testnet') || this.settings.name?.toLowerCase().includes('tckb');
+
+        const client = isTestnet
+            ? new ClientPublicTestnet({ url })
+            : new ClientPublicMainnet({ url });
+
+        await client.getTip();
+
+        this.post({ id: -1, type: RESPONSES.CONNECTED });
+
+        return client;
+    }
+
+    disconnect() {
+        if (blockPollInterval) {
+            clearInterval(blockPollInterval);
+            blockPollInterval = undefined;
+        }
+        this.cleanup();
+
+        return Promise.resolve();
+    }
+
+    async messageHandler(event: { data: MessageTypes.Message }) {
+        try {
+            if (await super.messageHandler(event)) return true;
+
+            const request: Request<MessageTypes.Message> = {
+                ...event.data,
+                connect: () => this.connect(),
+                post: (data: Response) => this.post(data),
+                state: this.state,
+            };
+
+            const response = await onRequest(request);
+            this.post({ id: event.data.id, ...response });
+        } catch (error: unknown) {
+            this.errorResponse(event.data.id, error);
+        }
+    }
+}
+
+export default function Ckb() {
+    return new CkbWorker();
+}
+
+if (CONTEXT === 'worker') {
+    const module = new CkbWorker();
+    onmessage = module.messageHandler.bind(module);
+}

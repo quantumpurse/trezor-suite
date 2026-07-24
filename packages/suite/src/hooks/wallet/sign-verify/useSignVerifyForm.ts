@@ -141,7 +141,7 @@ export const useSignVerifyForm = (isSignPage: boolean, account: Account) => {
 
     useEffect(() => {
         const overrideValues =
-            isSignPage && account?.networkType === 'ethereum'
+            isSignPage && (account?.networkType === 'ethereum' || account?.networkType === 'ckb')
                 ? {
                       path: account.path,
                       address: account.descriptor,
@@ -183,7 +183,7 @@ export const useSignVerifyForm = (isSignPage: boolean, account: Account) => {
                 pathField.onChange(addr?.path || '');
                 addressField.onChange(addr?.address || '');
             },
-            isDisabled: account?.networkType === 'ethereum',
+            isDisabled: account?.networkType === 'ethereum' || account?.networkType === 'ckb',
         },
         isElectrumField: {
             selectedOption: isElectrumField.value,

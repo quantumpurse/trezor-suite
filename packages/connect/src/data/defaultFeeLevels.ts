@@ -44,22 +44,35 @@ const getEvmChainGweiGasPrice = (chain: string) =>
         minPriorityFee: 0,
     };
 
-// partial data from coins.jon
-interface CoinsJsonData {
+interface BitcoinCoinsJsonData {
     shortcut: string; // uppercase shortcut
     blocktime_seconds: number;
-    // data below are defined and relevant only for bitcoin-like networks
-    default_fee_b: Record<'High' | 'Normal' | 'Economy' | 'Low', number>;
+    default_fee_b: Record<string, number>;
     maxfee_kb: number;
     minfee_kb: number;
     dust_limit: number;
-    // only for evm networks
-    chain: string;
 }
+
+interface EthereumCoinsJsonData {
+    blocktime_seconds: number;
+    chain?: string;
+}
+
+interface CkbCoinsJsonData {
+    blocktime_seconds: number;
+    default_fee: number;
+    min_fee: number;
+    max_fee: number;
+    minimum_cell_capacity: number;
+}
+
+type MiscCoinsJsonData = {
+    shortcut: string;
+};
 
 export type FeeInfoWithLevels = FeeInfo & { defaultFees: FeeLevel[] };
 
-export const getBitcoinFeeLevels = (coin: CoinsJsonData): FeeInfoWithLevels => {
+export const getBitcoinFeeLevels = (coin: BitcoinCoinsJsonData): FeeInfoWithLevels => {
     // sort fee levels from coinInfo
     // and transform in to FeeLevel object
     const defaultFees = coin.default_fee_b;
@@ -91,8 +104,39 @@ export const getBitcoinFeeLevels = (coin: CoinsJsonData): FeeInfoWithLevels => {
     };
 };
 
-export const getEthereumFeeLevels = (network: CoinsJsonData): FeeInfoWithLevels => {
-    const { min, max, defaultGas, minPriorityFee } = getEvmChainGweiGasPrice(network.chain);
+export const getCkbFeeLevels = (coin: CkbCoinsJsonData): FeeInfoWithLevels => {
+    const economyFee = coin.default_fee;
+    const normalFee = Math.round(economyFee * 1.5);
+    const highFee = economyFee * 2;
+
+    return {
+        blockTime: Math.max(1, Math.round(coin.blocktime_seconds / 60)),
+        defaultFees: [
+            {
+                label: 'high',
+                feePerUnit: highFee.toString(),
+                blocks: DEFAULT_BLOCK_FOR_FEE_LEVEL,
+            },
+            {
+                label: 'normal',
+                feePerUnit: normalFee.toString(),
+                blocks: DEFAULT_BLOCK_FOR_FEE_LEVEL,
+            },
+            {
+                label: 'economy',
+                feePerUnit: economyFee.toString(),
+                blocks: DEFAULT_BLOCK_FOR_FEE_LEVEL,
+            },
+        ],
+        minFee: coin.min_fee,
+        maxFee: coin.max_fee,
+        minPriorityFee: -1,
+        dustLimit: coin.minimum_cell_capacity,
+    };
+};
+
+export const getEthereumFeeLevels = (network: EthereumCoinsJsonData): FeeInfoWithLevels => {
+    const { min, max, defaultGas, minPriorityFee } = getEvmChainGweiGasPrice(network.chain ?? '');
 
     return {
         blockTime: Math.max(0.1, Math.round(network.blocktime_seconds)),
@@ -168,7 +212,7 @@ const MISC_FEE_LEVELS: Record<string, FeeInfoWithLevels> = {
     txlm: STELLAR_FEE_INFO,
 };
 
-export const getMiscFeeLevels = (data: CoinsJsonData): FeeInfoWithLevels => {
+export const getMiscFeeLevels = (data: MiscCoinsJsonData): FeeInfoWithLevels => {
     const shortcut = data.shortcut.toLowerCase();
 
     return (

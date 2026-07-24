@@ -65,6 +65,12 @@ const showAddressByNetwork =
                 return TrezorConnect.getAddress(params);
             case 'ethereum':
                 return TrezorConnect.ethereumGetAddress(params);
+            case 'ckb':
+                return TrezorConnect.ckbGetAddress({
+                    ...params,
+                    coin: account.symbol === 'tckb' ? 'tckb' : 'ckb',
+                    network: account.symbol === 'tckb' ? 'Testnet' : 'Mainnet',
+                });
             default:
                 return Promise.reject(new Error('ShowAddress not supported'));
         }
@@ -86,6 +92,15 @@ const signByNetwork =
                 return TrezorConnect.signMessage(params);
             case 'ethereum':
                 return TrezorConnect.ethereumSignMessage(params);
+            case 'ckb':
+                return TrezorConnect.ckbSignMessage({
+                    device,
+                    path,
+                    message,
+                    hex,
+                    network: account.symbol === 'tckb' ? 'Testnet' : 'Mainnet',
+                    chunkify: true,
+                });
             case 'cardano': {
                 const payload = hex ? message : Buffer.from(message, 'utf8').toString('hex');
                 const serializedPath = typeof path === 'string' ? path : getSerializedPath(path);
@@ -129,6 +144,7 @@ export const isVerifySupported = (account?: Account) => {
     switch (account?.networkType) {
         case 'bitcoin':
         case 'ethereum':
+        case 'ckb':
             return true;
         default:
             return false;
@@ -145,6 +161,16 @@ const verifyByNetwork =
                 return TrezorConnect.verifyMessage(params);
             case 'ethereum':
                 return TrezorConnect.ethereumVerifyMessage(params);
+            case 'ckb':
+                return TrezorConnect.ckbVerifyMessage({
+                    device,
+                    address,
+                    message,
+                    signature,
+                    hex,
+                    network: account.symbol === 'tckb' ? 'Testnet' : 'Mainnet',
+                    chunkify: true,
+                });
             default:
                 return Promise.reject(new Error('Verifying not supported'));
         }

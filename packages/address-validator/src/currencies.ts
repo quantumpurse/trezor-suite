@@ -1,6 +1,7 @@
 import * as ADAValidator from './ada_validator';
 import * as BCHValidator from './bch_validator';
 import * as BTCValidator from './bitcoin_validator';
+import * as CKBValidator from './ckb_validator';
 import type { Currency } from './currency-types';
 import * as ETHValidator from './ethereum_validator';
 import * as XRPValidator from './ripple_validator';
@@ -115,6 +116,11 @@ const CURRENCIES: Currency[] = [
         name: 'Avalanche C-Chain',
         symbol: 'avax',
         validator: ETHValidator,
+    },
+    {
+        name: 'Nervos',
+        symbol: 'ckb',
+        validator: CKBValidator,
     },
 ];
 

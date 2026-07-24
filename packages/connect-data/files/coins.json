@@ -2602,6 +2602,54 @@
     "misc": [
         {
             "blockchain_link": {
+                "type": "ckb",
+                "url": ["wss://mainnet.ckb.dev/ws"]
+            },
+            "blocktime_seconds": 10,
+            "curve": "secp256k1",
+            "decimals": 8,
+            "default_fee": 1000,
+            "max_fee": 100000,
+            "min_fee": 1,
+            "minimum_cell_capacity": 6100000000,
+            "name": "Nervos CKB",
+            "shortcut": "CKB",
+            "slip44": 309,
+            "support": {
+                "T1B1": false,
+                "T2B1": false,
+                "T2T1": false,
+                "T3B1": false,
+                "T3T1": false,
+                "T3W1": "2.6.1"
+            }
+        },
+        {
+            "blockchain_link": {
+                "type": "ckb",
+                "url": ["wss://testnet.ckb.dev/ws"]
+            },
+            "blocktime_seconds": 10,
+            "curve": "secp256k1",
+            "decimals": 8,
+            "default_fee": 1000,
+            "max_fee": 100000,
+            "min_fee": 1,
+            "minimum_cell_capacity": 6100000000,
+            "name": "Nervos CKB Testnet",
+            "shortcut": "tCKB",
+            "slip44": 309,
+            "support": {
+                "T1B1": false,
+                "T2B1": false,
+                "T2T1": false,
+                "T3B1": false,
+                "T3T1": false,
+                "T3W1": "2.6.1"
+            }
+        },
+        {
+            "blockchain_link": {
                 "type": "blockfrost",
                 "url": ["wss://ada.trezor.io"]
             },

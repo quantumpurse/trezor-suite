@@ -14,6 +14,7 @@ type Attributes = {
         | 'solana'
         | 'stellar'
         | 'evm-rpc'
+        | 'ckb'
     >;
     totalRegular: AttributeDef<number>;
     totalOnion: AttributeDef<number>;
