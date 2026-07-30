@@ -426,6 +426,10 @@ export default class CkbSphincsPlusSignTransaction extends AbstractMethod<
             witnesses_count: witnesses.length,
             sign_group_input_indices: signGroupInputIndices,
             chunkify: typeof chunkify === 'boolean' ? chunkify : false,
+            // Committed in the device's tx hash. Always empty today because
+            // headerDeps are rejected above; kept as a mapping so lifting that
+            // guard for Nervos DAO needs no change here.
+            header_deps: transaction.headerDeps.map(stripHex),
         };
 
         super(message, params);

@@ -191,6 +191,7 @@ export const CKBSphincsPlusSignTx = Type.Object(
         witnesses_count: Type.Optional(Type.Number()),
         sign_group_input_indices: Type.Array(Type.Number()),
         chunkify: Type.Optional(Type.Boolean()),
+        header_deps: Type.Array(Type.String()),
     },
     { $id: 'CKBSphincsPlusSignTx' },
 );
