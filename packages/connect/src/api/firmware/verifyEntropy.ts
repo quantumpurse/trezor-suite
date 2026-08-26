@@ -1,6 +1,5 @@
 import { hmac } from '@noble/hashes/hmac.js';
-import { pbkdf2Async } from '@noble/hashes/pbkdf2.js';
-import { sha256, sha512 } from '@noble/hashes/sha2.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 import { randomBytes } from '@noble/hashes/utils.js';
 import { entropyToMnemonic, mnemonicToSeed } from '@scure/bip39';
 
@@ -136,24 +135,20 @@ const computeSeed = (type: VerifyEntropyOptions['type'], secret: Buffer) => {
     }
 
     // Extended BIP-39 mnemonic (384/576/768 bits): 3 concatenated standard
-    // BIP-39 phrases, mirroring the firmware so the derived seed matches.
+    // BIP-39 phrases. The device derives every BIP-32 wallet from the FIRST
+    // sub-phrase alone (core `storage.device.bip39_base_phrase`), so the seed
+    // behind the entropy-check xpubs must come from that phrase only, never
+    // from the 36/54/72-word concatenation. Mirrors trezorlib's
+    // `_seed_from_entropy`; the other two sub-phrases feed SPHINCS+ only and
+    // are outside what this workflow can prove.
     const subLength = Math.floor(secret.length / 3);
-    const phrases: string[] = [];
-    for (let i = 0; i < 3; i++) {
-        const subSecret = Buffer.from(secret.subarray(i * subLength, (i + 1) * subLength));
-        phrases.push(entropyToMnemonic(subSecret, [...bip39]));
-    }
+    const basePhrase = entropyToMnemonic(Buffer.from(secret.subarray(0, subLength)), [
+        ...bip39,
+    ]);
 
-    // Derive the seed via PBKDF2 directly: `mnemonicToSeed` rejects the
-    // non-standard 36/54/72-word length, whereas the firmware's `bip39.seed`
-    // hashes the full mnemonic string. This matches the BIP-39 seed derivation
-    // the firmware performs.
-    const mnemonicNfkd = phrases.join(' ').normalize('NFKD');
-    const seedSalt = 'mnemonic'.normalize('NFKD');
-
-    return pbkdf2Async(sha512, mnemonicNfkd, seedSalt, { c: 2048, dkLen: 64 }).then(seed =>
-        Buffer.from(seed),
-    );
+    // The base phrase is a standard 12/18/24-word mnemonic, so the ordinary
+    // BIP-39 seed derivation applies.
+    return mnemonicToSeed(basePhrase).then(seed => Buffer.from(seed));
 };
 
 const verifyCommitment = (entropy: string, commitment: string) => {

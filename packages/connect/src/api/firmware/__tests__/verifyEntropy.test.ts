@@ -12,7 +12,14 @@ import { verifyEntropy } from '../verifyEntropy';
 // derivation. The seed is derived with Node's PBKDF2 (not @noble, which is what
 // verifyEntropy uses), so the expected xpubs are computed independently of the
 // seed code path under test.
-const computeExtended = (internalHex: string, externalHex: string) => {
+const computeExtended = (
+    internalHex: string,
+    externalHex: string,
+    // 'base' is what the firmware actually does: derive from sub-phrase 1 alone.
+    // 'concatenated' reproduces the pre-fix behaviour so a regression test can
+    // assert that those xpubs are now rejected.
+    phraseUnderTest: 'base' | 'concatenated' = 'base',
+) => {
     const internal = Buffer.from(internalHex, 'hex');
     const external = Buffer.from(externalHex, 'hex');
 
@@ -34,8 +41,10 @@ const computeExtended = (internalHex: string, externalHex: string) => {
     }
 
     // Independent PBKDF2 (Node/OpenSSL) — must match what verifyEntropy derives.
+    // The device hashes only the base phrase (core `bip39_base_phrase`).
+    const words = phraseUnderTest === 'base' ? phrases[0] : phrases.join(' ');
     const seed = pbkdf2Sync(
-        phrases.join(' ').normalize('NFKD'),
+        words.normalize('NFKD'),
         'mnemonic'.normalize('NFKD'),
         2048,
         64,
@@ -116,6 +125,42 @@ describe('firmware/verifyEntropy', () => {
                 "m/84'/0'/0'": xpubs["m/44'/60'/0'"],
                 "m/44'/60'/0'": xpubs["m/84'/0'/0'"],
             },
+        });
+        expect(response.success).toEqual(false);
+    });
+
+    it('bip39 extended (SPHINCS+ 384-bit) success', async () => {
+        // The smallest extended strength: sub-phrases are 12 words, so the base
+        // phrase takes a different `subLength` branch than the 768-bit case.
+        const trezorEntropy = '3a'.repeat(48);
+        const hostEntropy = '5c'.repeat(32);
+        const { commitment, xpubs } = computeExtended(trezorEntropy, hostEntropy);
+
+        const response = await verifyEntropy({
+            strength: 384,
+            hostEntropy,
+            commitment,
+            trezorEntropy,
+            xpubs,
+        });
+        expect(response.success).toEqual(true);
+    });
+
+    it('bip39 extended rejects xpubs derived from the concatenated phrase', async () => {
+        // Regression guard for the base-phrase rule. Deriving over all 72 words
+        // is exactly what this code did before the fix, and it made every
+        // SPHINCS+ wallet creation fail against real firmware.
+        const trezorEntropy = 'ab'.repeat(96);
+        const hostEntropy = 'cd'.repeat(32);
+        const { commitment } = computeExtended(trezorEntropy, hostEntropy);
+        const { xpubs } = computeExtended(trezorEntropy, hostEntropy, 'concatenated');
+
+        const response = await verifyEntropy({
+            strength: 768,
+            hostEntropy,
+            commitment,
+            trezorEntropy,
+            xpubs,
         });
         expect(response.success).toEqual(false);
     });
