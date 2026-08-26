@@ -54,6 +54,11 @@ const computeExtended = (
 
     return {
         commitment: Buffer.from(hmac(sha256, internal, Buffer.alloc(0))).toString('hex'),
+        // What the device sends alongside the xpubs: SHA-256 over the whole
+        // mnemonic string, binding the sub-phrases that feed SPHINCS+.
+        fullPhraseDigest: Buffer.from(sha256(Buffer.from(phrases.join(' '), 'utf-8'))).toString(
+            'hex',
+        ),
         xpubs: {
             "m/84'/0'/0'": node.derivePath("m/84'/0'/0'").neutered().toBase58(),
             "m/44'/60'/0'": node.derivePath("m/44'/60'/0'").neutered().toBase58(),
@@ -98,7 +103,7 @@ describe('firmware/verifyEntropy', () => {
     it('bip39 extended (SPHINCS+ 768-bit) success', async () => {
         const trezorEntropy = 'ab'.repeat(96);
         const hostEntropy = 'cd'.repeat(32);
-        const { commitment, xpubs } = computeExtended(trezorEntropy, hostEntropy);
+        const { commitment, xpubs, fullPhraseDigest } = computeExtended(trezorEntropy, hostEntropy);
 
         const response = await verifyEntropy({
             strength: 768,
@@ -106,6 +111,7 @@ describe('firmware/verifyEntropy', () => {
             commitment,
             trezorEntropy,
             xpubs,
+            fullPhraseDigest,
         });
         expect(response.success).toEqual(true);
     });
@@ -134,7 +140,7 @@ describe('firmware/verifyEntropy', () => {
         // phrase takes a different `subLength` branch than the 768-bit case.
         const trezorEntropy = '3a'.repeat(48);
         const hostEntropy = '5c'.repeat(32);
-        const { commitment, xpubs } = computeExtended(trezorEntropy, hostEntropy);
+        const { commitment, xpubs, fullPhraseDigest } = computeExtended(trezorEntropy, hostEntropy);
 
         const response = await verifyEntropy({
             strength: 384,
@@ -142,18 +148,35 @@ describe('firmware/verifyEntropy', () => {
             commitment,
             trezorEntropy,
             xpubs,
+            fullPhraseDigest,
         });
         expect(response.success).toEqual(true);
     });
 
-    it('bip39 extended rejects xpubs derived from the concatenated phrase', async () => {
-        // Regression guard for the base-phrase rule. Deriving over all 72 words
-        // is exactly what this code did before the fix, and it made every
-        // SPHINCS+ wallet creation fail against real firmware.
+    it('bip39 extended rejects a wrong full-phrase digest', async () => {
+        // Simulates a firmware that kept sub-phrase 1 honest - so the xpubs still
+        // verify - but derived the other two without the host entropy.
         const trezorEntropy = 'ab'.repeat(96);
         const hostEntropy = 'cd'.repeat(32);
-        const { commitment } = computeExtended(trezorEntropy, hostEntropy);
-        const { xpubs } = computeExtended(trezorEntropy, hostEntropy, 'concatenated');
+        const { commitment, xpubs } = computeExtended(trezorEntropy, hostEntropy);
+
+        const response = await verifyEntropy({
+            strength: 768,
+            hostEntropy,
+            commitment,
+            trezorEntropy,
+            xpubs,
+            fullPhraseDigest: '00'.repeat(32),
+        });
+        expect(response.success).toEqual(false);
+    });
+
+    it('bip39 extended rejects a missing full-phrase digest', async () => {
+        // Optional on the wire, so a firmware that skipped the sub-phrases could
+        // otherwise stay silent. Extended strengths must require it.
+        const trezorEntropy = 'ab'.repeat(96);
+        const hostEntropy = 'cd'.repeat(32);
+        const { commitment, xpubs } = computeExtended(trezorEntropy, hostEntropy);
 
         const response = await verifyEntropy({
             strength: 768,
@@ -163,5 +186,29 @@ describe('firmware/verifyEntropy', () => {
             xpubs,
         });
         expect(response.success).toEqual(false);
+    });
+
+    it('bip39 extended rejects xpubs derived from the concatenated phrase', async () => {
+        // Regression guard for the base-phrase rule. Deriving over all 72 words
+        // is exactly what this code did before the fix, and it made every
+        // SPHINCS+ wallet creation fail against real firmware.
+        const trezorEntropy = 'ab'.repeat(96);
+        const hostEntropy = 'cd'.repeat(32);
+        const { commitment, fullPhraseDigest } = computeExtended(trezorEntropy, hostEntropy);
+        const { xpubs } = computeExtended(trezorEntropy, hostEntropy, 'concatenated');
+
+        const response = await verifyEntropy({
+            strength: 768,
+            hostEntropy,
+            commitment,
+            trezorEntropy,
+            xpubs,
+            // A valid digest, so the failure can only come from the xpub check -
+            // otherwise this guard would pass on the missing-digest branch even
+            // with the base-phrase fix reverted.
+            fullPhraseDigest,
+        });
+        expect(response.success).toEqual(false);
+        expect(response.error).toEqual('verifyEntropy xpub mismatch');
     });
 });

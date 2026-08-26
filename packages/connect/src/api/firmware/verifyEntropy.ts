@@ -111,6 +111,21 @@ const getEntropy = (trezorEntropy: string, hostEntropy: string, strength: number
     return Buffer.concat(parts);
 };
 
+/** The 3 standard BIP-39 phrases an extended `secret` decodes into. */
+const extendedSubPhrases = (secret: Buffer) => {
+    const subLength = Math.floor(secret.length / 3);
+
+    return [0, 1, 2].map(i =>
+        entropyToMnemonic(Buffer.from(secret.subarray(i * subLength, (i + 1) * subLength)), [
+            ...bip39,
+        ]),
+    );
+};
+
+/** The whole extended mnemonic, exactly as the device stores and hashes it. */
+const computeFullPhraseDigest = (secret: Buffer) =>
+    Buffer.from(sha256(Buffer.from(extendedSubPhrases(secret).join(' '), 'utf-8')));
+
 const computeSeed = (type: VerifyEntropyOptions['type'], secret: Buffer) => {
     const BackupType = PROTO.Enum_BackupType;
     if (
@@ -140,11 +155,8 @@ const computeSeed = (type: VerifyEntropyOptions['type'], secret: Buffer) => {
     // behind the entropy-check xpubs must come from that phrase only, never
     // from the 36/54/72-word concatenation. Mirrors trezorlib's
     // `_seed_from_entropy`; the other two sub-phrases feed SPHINCS+ only and
-    // are outside what this workflow can prove.
-    const subLength = Math.floor(secret.length / 3);
-    const basePhrase = entropyToMnemonic(Buffer.from(secret.subarray(0, subLength)), [
-        ...bip39,
-    ]);
+    // are bound by `full_phrase_digest` instead.
+    const basePhrase = extendedSubPhrases(secret)[0];
 
     // The base phrase is a standard 12/18/24-word mnemonic, so the ordinary
     // BIP-39 seed derivation applies.
@@ -165,6 +177,7 @@ type VerifyEntropyOptions = {
     hostEntropy: string; // host_entropy used in previous EntropyAck
     trezorEntropy?: string; // prev_entropy received from current EntropyRequest, after ResetDeviceContinue
     xpubs: Record<string, string>; // <Bip43 path, xpub>
+    fullPhraseDigest?: string; // full_phrase_digest received with the round's EntropyCheckReady
 };
 
 export const verifyEntropy = async ({
@@ -174,6 +187,7 @@ export const verifyEntropy = async ({
     hostEntropy,
     commitment,
     xpubs,
+    fullPhraseDigest,
 }: VerifyEntropyOptions) => {
     try {
         if (!trezorEntropy || !commitment || !strength || Object.keys(xpubs).length < 1) {
@@ -194,6 +208,18 @@ export const verifyEntropy = async ({
                 throw new Error('verifyEntropy xpub mismatch');
             }
         });
+
+        // The xpubs above cover the base phrase only. For an extended mnemonic the
+        // device also binds the sub-phrases that feed SPHINCS+; require it, since a
+        // firmware that skipped them could otherwise omit the field silently.
+        if (strength > 256) {
+            if (!fullPhraseDigest) {
+                throw new Error('verifyEntropy missing full phrase digest');
+            }
+            if (!computeFullPhraseDigest(secret).equals(Buffer.from(fullPhraseDigest, 'hex'))) {
+                throw new Error('verifyEntropy full phrase digest mismatch');
+            }
+        }
 
         return { success: true as const };
     } catch (error) {

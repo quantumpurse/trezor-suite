@@ -96,7 +96,9 @@ export default class ResetDevice extends AbstractMethod<'resetDevice', PROTO.Res
             .typedCall('ResetDevice', 'EntropyRequest', this.params)
             .then(response => response.message.entropy_commitment);
 
-        await cmd.typedCall('EntropyAck', 'EntropyCheckReady', { entropy });
+        let fullPhraseDigest = await cmd
+            .typedCall('EntropyAck', 'EntropyCheckReady', { entropy })
+            .then(response => response.message.full_phrase_digest);
 
         const tries = getRandomInt(1, 5);
         for (let i = 0; i < tries; i++) {
@@ -117,6 +119,7 @@ export default class ResetDevice extends AbstractMethod<'resetDevice', PROTO.Res
                 hostEntropy: entropy,
                 trezorEntropy: prev_entropy,
                 xpubs,
+                fullPhraseDigest,
             });
 
             if (res.error) {
@@ -127,7 +130,10 @@ export default class ResetDevice extends AbstractMethod<'resetDevice', PROTO.Res
             entropy = generateEntropy(32).toString('hex');
             commitment = entropy_commitment;
 
-            await cmd.typedCall('EntropyAck', 'EntropyCheckReady', { entropy }).catch(handleErr);
+            fullPhraseDigest = await cmd
+                .typedCall('EntropyAck', 'EntropyCheckReady', { entropy })
+                .then(response => response.message.full_phrase_digest)
+                .catch(handleErr);
         }
         const finalXPubs = await getXPubs();
 
