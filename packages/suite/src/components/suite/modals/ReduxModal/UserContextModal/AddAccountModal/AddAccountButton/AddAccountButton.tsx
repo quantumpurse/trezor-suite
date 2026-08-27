@@ -41,6 +41,13 @@ const verifyAvailability = ({
         return network.networkType === 'ckb' ? undefined : 'MODAL_ADD_ACCOUNT_NO_ACCOUNT';
     }
 
+    if (account.networkType === 'ckb') {
+        // Discovery keeps no lookahead account for CKB; the next one is created on demand.
+        return account.empty && account.visible
+            ? 'MODAL_ADD_ACCOUNT_PREVIOUS_EMPTY'
+            : undefined;
+    }
+
     if (account.networkType !== 'ethereum') {
         if (emptyAccounts.length === 0) {
             return 'MODAL_ADD_ACCOUNT_NO_EMPTY_ACCOUNT';

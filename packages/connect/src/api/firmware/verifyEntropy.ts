@@ -1,6 +1,5 @@
 import { hmac } from '@noble/hashes/hmac.js';
-import { pbkdf2Async } from '@noble/hashes/pbkdf2.js';
-import { sha256, sha512 } from '@noble/hashes/sha2.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 import { randomBytes } from '@noble/hashes/utils.js';
 import { entropyToMnemonic, mnemonicToSeed } from '@scure/bip39';
 
@@ -112,6 +111,21 @@ const getEntropy = (trezorEntropy: string, hostEntropy: string, strength: number
     return Buffer.concat(parts);
 };
 
+/** The 3 standard BIP-39 phrases an extended `secret` decodes into. */
+const extendedSubPhrases = (secret: Buffer) => {
+    const subLength = Math.floor(secret.length / 3);
+
+    return [0, 1, 2].map(i =>
+        entropyToMnemonic(Buffer.from(secret.subarray(i * subLength, (i + 1) * subLength)), [
+            ...bip39,
+        ]),
+    );
+};
+
+/** The whole extended mnemonic, exactly as the device stores and hashes it. */
+const computeFullPhraseDigest = (secret: Buffer) =>
+    Buffer.from(sha256(Buffer.from(extendedSubPhrases(secret).join(' '), 'utf-8')));
+
 const computeSeed = (type: VerifyEntropyOptions['type'], secret: Buffer) => {
     const BackupType = PROTO.Enum_BackupType;
     if (
@@ -136,24 +150,17 @@ const computeSeed = (type: VerifyEntropyOptions['type'], secret: Buffer) => {
     }
 
     // Extended BIP-39 mnemonic (384/576/768 bits): 3 concatenated standard
-    // BIP-39 phrases, mirroring the firmware so the derived seed matches.
-    const subLength = Math.floor(secret.length / 3);
-    const phrases: string[] = [];
-    for (let i = 0; i < 3; i++) {
-        const subSecret = Buffer.from(secret.subarray(i * subLength, (i + 1) * subLength));
-        phrases.push(entropyToMnemonic(subSecret, [...bip39]));
-    }
+    // BIP-39 phrases. The device derives every BIP-32 wallet from the FIRST
+    // sub-phrase alone (core `storage.device.bip39_base_phrase`), so the seed
+    // behind the entropy-check xpubs must come from that phrase only, never
+    // from the 36/54/72-word concatenation. Mirrors trezorlib's
+    // `_seed_from_entropy`; the other two sub-phrases feed SPHINCS+ only and
+    // are bound by `full_phrase_digest` instead.
+    const basePhrase = extendedSubPhrases(secret)[0];
 
-    // Derive the seed via PBKDF2 directly: `mnemonicToSeed` rejects the
-    // non-standard 36/54/72-word length, whereas the firmware's `bip39.seed`
-    // hashes the full mnemonic string. This matches the BIP-39 seed derivation
-    // the firmware performs.
-    const mnemonicNfkd = phrases.join(' ').normalize('NFKD');
-    const seedSalt = 'mnemonic'.normalize('NFKD');
-
-    return pbkdf2Async(sha512, mnemonicNfkd, seedSalt, { c: 2048, dkLen: 64 }).then(seed =>
-        Buffer.from(seed),
-    );
+    // The base phrase is a standard 12/18/24-word mnemonic, so the ordinary
+    // BIP-39 seed derivation applies.
+    return mnemonicToSeed(basePhrase).then(seed => Buffer.from(seed));
 };
 
 const verifyCommitment = (entropy: string, commitment: string) => {
@@ -170,6 +177,7 @@ type VerifyEntropyOptions = {
     hostEntropy: string; // host_entropy used in previous EntropyAck
     trezorEntropy?: string; // prev_entropy received from current EntropyRequest, after ResetDeviceContinue
     xpubs: Record<string, string>; // <Bip43 path, xpub>
+    fullPhraseDigest?: string; // full_phrase_digest received with the round's EntropyCheckReady
 };
 
 export const verifyEntropy = async ({
@@ -179,6 +187,7 @@ export const verifyEntropy = async ({
     hostEntropy,
     commitment,
     xpubs,
+    fullPhraseDigest,
 }: VerifyEntropyOptions) => {
     try {
         if (!trezorEntropy || !commitment || !strength || Object.keys(xpubs).length < 1) {
@@ -199,6 +208,18 @@ export const verifyEntropy = async ({
                 throw new Error('verifyEntropy xpub mismatch');
             }
         });
+
+        // The xpubs above cover the base phrase only. For an extended mnemonic the
+        // device also binds the sub-phrases that feed SPHINCS+; require it, since a
+        // firmware that skipped them could otherwise omit the field silently.
+        if (strength > 256) {
+            if (!fullPhraseDigest) {
+                throw new Error('verifyEntropy missing full phrase digest');
+            }
+            if (!computeFullPhraseDigest(secret).equals(Buffer.from(fullPhraseDigest, 'hex'))) {
+                throw new Error('verifyEntropy full phrase digest mismatch');
+            }
+        }
 
         return { success: true as const };
     } catch (error) {
