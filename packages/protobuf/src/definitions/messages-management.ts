@@ -334,7 +334,12 @@ export const EntropyCheckContinue = Type.Object(
 );
 
 export type EntropyCheckReady = Static<typeof EntropyCheckReady>;
-export const EntropyCheckReady = Type.Object({}, { $id: 'EntropyCheckReady' });
+export const EntropyCheckReady = Type.Object(
+    {
+        full_phrase_digest: Type.Optional(Type.String()),
+    },
+    { $id: 'EntropyCheckReady' },
+);
 
 export type EntropyRequest = Static<typeof EntropyRequest>;
 export const EntropyRequest = Type.Object(

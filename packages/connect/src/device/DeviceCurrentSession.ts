@@ -23,6 +23,9 @@ const blacklist: Record<string, string[] | true> = {
     GetPublicKey: ['address_n'],
     PublicKey: ['node', 'xpub'],
     DecryptedMessage: ['message', 'address'],
+    // sha256 over the whole extended mnemonic - one-way, but still derived from
+    // the retained secret and sent on every entropy-check round.
+    EntropyCheckReady: ['full_phrase_digest'],
     Features: true,
 };
 
