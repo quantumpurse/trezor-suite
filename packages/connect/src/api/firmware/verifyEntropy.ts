@@ -143,24 +143,7 @@ const computeSeed = (type: VerifyEntropyOptions['type'], secret: Buffer) => {
     }
 
     // use bip39
-    if (secret.length <= 32) {
-        return mnemonicToSeed(entropyToMnemonic(secret, [...bip39])).then(seed =>
-            Buffer.from(seed),
-        );
-    }
-
-    // Extended BIP-39 mnemonic (384/576/768 bits): 3 concatenated standard
-    // BIP-39 phrases. The device derives every BIP-32 wallet from the FIRST
-    // sub-phrase alone (core `storage.device.bip39_base_phrase`), so the seed
-    // behind the entropy-check xpubs must come from that phrase only, never
-    // from the 36/54/72-word concatenation. Mirrors trezorlib's
-    // `_seed_from_entropy`; the other two sub-phrases feed SPHINCS+ only and
-    // are bound by `full_phrase_digest` instead.
-    const basePhrase = extendedSubPhrases(secret)[0];
-
-    // The base phrase is a standard 12/18/24-word mnemonic, so the ordinary
-    // BIP-39 seed derivation applies.
-    return mnemonicToSeed(basePhrase).then(seed => Buffer.from(seed));
+    return mnemonicToSeed(entropyToMnemonic(secret, [...bip39])).then(seed => Buffer.from(seed));
 };
 
 const verifyCommitment = (entropy: string, commitment: string) => {
@@ -209,9 +192,9 @@ export const verifyEntropy = async ({
             }
         });
 
-        // The xpubs above cover the base phrase only. For an extended mnemonic the
-        // device also binds the sub-phrases that feed SPHINCS+; require it, since a
-        // firmware that skipped them could otherwise omit the field silently.
+        // For an extended mnemonic the device also binds the sub-phrases that feed
+        // SPHINCS+; require it, since a firmware that skipped them could otherwise
+        // omit the field silently.
         if (strength > 256) {
             if (!fullPhraseDigest) {
                 throw new Error('verifyEntropy missing full phrase digest');
