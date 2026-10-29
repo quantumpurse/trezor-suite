@@ -413,6 +413,7 @@ export const Features = Type.Object(
         led: Type.Optional(Type.Boolean()),
         usb_connected: Type.Optional(Type.Boolean()),
         wireless_connected: Type.Optional(Type.Boolean()),
+        sphincs_only: Type.Optional(Type.Boolean()),
     },
     { $id: 'Features' },
 );

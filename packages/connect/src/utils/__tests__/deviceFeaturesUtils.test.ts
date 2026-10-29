@@ -434,4 +434,46 @@ describe('utils/deviceFeaturesUtils', () => {
             expect(parseRevision({ revision: null })).toEqual(null);
         });
     });
+
+    describe('getUnavailableCapabilities with sphincs_only', () => {
+        const featT3W1 = {
+            major_version: 2,
+            minor_version: 99,
+            patch_version: 0,
+            internal_model: DeviceModelInternal.T3W1,
+            capabilities: [
+                'Capability_Bitcoin',
+                'Capability_Bitcoin_like',
+                'Capability_Cardano',
+                'Capability_Ethereum',
+                'Capability_Solana',
+                'Capability_CKB',
+            ],
+        } as unknown as Features;
+        const isCkb = (shortcut: string) => ['ckb', 'tckb'].includes(shortcut);
+
+        it('leaves only CKB available', () => {
+            const coins = getAllNetworks();
+            const standard = getUnavailableCapabilities(featT3W1, coins);
+            const sphincsOnly = getUnavailableCapabilities(
+                { ...featT3W1, sphincs_only: true },
+                coins,
+            );
+
+            expect(standard.btc).toBeUndefined();
+            expect(standard.ckb).toBeUndefined();
+
+            coins.forEach(({ shortcut }) => {
+                const key = shortcut.toLowerCase();
+                if (isCkb(key)) {
+                    expect(sphincsOnly[key]).toEqual(standard[key]);
+                } else {
+                    expect(sphincsOnly[key]).toBeDefined();
+                }
+            });
+            expect(sphincsOnly.btc).toEqual('no-capability');
+            expect(sphincsOnly.eth).toEqual('no-capability');
+            expect(sphincsOnly.ada).toEqual('no-capability');
+        });
+    });
 });

@@ -1,68 +1,33 @@
-import { hmac } from '@noble/hashes/hmac.js';
-import { sha256 } from '@noble/hashes/sha2.js';
 import { entropyToMnemonic } from '@scure/bip39';
-import { pbkdf2Sync } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 
 import { bip39 } from '@trezor/crypto-utils';
-import { bip32 } from '@trezor/utxo-lib';
 
 import { verifyEntropy } from '../verifyEntropy';
 
-// Recreates the firmware's extended (SPHINCS+) entropy → mnemonic → seed → xpub
-// derivation. The seed is derived with Node's PBKDF2 (not @noble, which is what
-// verifyEntropy uses), so the expected xpubs are computed independently of the
-// seed code path under test.
-const computeExtended = (
-    internalHex: string,
-    externalHex: string,
-    // 'base' is what the firmware actually does: derive from sub-phrase 1 alone.
-    // 'concatenated' reproduces the pre-fix behaviour so a regression test can
-    // assert that those xpubs are now rejected.
-    phraseUnderTest: 'base' | 'concatenated' = 'base',
-) => {
+// Recreates what the firmware sends for an extended (SPHINCS+) mnemonic, using
+// Node's crypto rather than the @noble code under test: the entropy commitment
+// and the SHA-256 of the whole 36/54/72-word mnemonic.
+const computeExtended = (internalHex: string, externalHex: string) => {
     const internal = Buffer.from(internalHex, 'hex');
     const external = Buffer.from(externalHex, 'hex');
 
     // 3 sub-secrets (matches firmware reset_device._compute_secret_from_entropy)
     const sub = Math.floor(internal.length / 3);
-    const parts: Buffer[] = [];
-    for (let i = 0; i < 3; i++) {
-        const subInternal = internal.subarray(i * sub, (i + 1) * sub);
-        const subSecret = sha256(Buffer.concat([subInternal, external, Buffer.from([i])]));
-        parts.push(Buffer.from(subSecret.subarray(0, sub)));
-    }
-    const secret = Buffer.concat(parts);
+    const phrases = [0, 1, 2].map(i => {
+        const subSecret = createHash('sha256')
+            .update(internal.subarray(i * sub, (i + 1) * sub))
+            .update(external)
+            .update(Buffer.from([i]))
+            .digest()
+            .subarray(0, sub);
 
-    const subLen = Math.floor(secret.length / 3);
-    const phrases: string[] = [];
-    for (let i = 0; i < 3; i++) {
-        const subSecret = Buffer.from(secret.subarray(i * subLen, (i + 1) * subLen));
-        phrases.push(entropyToMnemonic(subSecret, [...bip39]));
-    }
-
-    // Independent PBKDF2 (Node/OpenSSL) — must match what verifyEntropy derives.
-    // The device hashes only the base phrase (core `bip39_base_phrase`).
-    const words = phraseUnderTest === 'base' ? phrases[0] : phrases.join(' ');
-    const seed = pbkdf2Sync(
-        words.normalize('NFKD'),
-        'mnemonic'.normalize('NFKD'),
-        2048,
-        64,
-        'sha512',
-    );
-    const node = bip32.fromSeed(seed);
+        return entropyToMnemonic(subSecret, [...bip39]);
+    });
 
     return {
-        commitment: Buffer.from(hmac(sha256, internal, Buffer.alloc(0))).toString('hex'),
-        // What the device sends alongside the xpubs: SHA-256 over the whole
-        // mnemonic string, binding the sub-phrases that feed SPHINCS+.
-        fullPhraseDigest: Buffer.from(sha256(Buffer.from(phrases.join(' '), 'utf-8'))).toString(
-            'hex',
-        ),
-        xpubs: {
-            "m/84'/0'/0'": node.derivePath("m/84'/0'/0'").neutered().toBase58(),
-            "m/44'/60'/0'": node.derivePath("m/44'/60'/0'").neutered().toBase58(),
-        },
+        commitment: createHmac('sha256', internal).update(Buffer.alloc(0)).digest('hex'),
+        fullPhraseDigest: createHash('sha256').update(phrases.join(' '), 'utf-8').digest('hex'),
     };
 };
 
@@ -100,115 +65,95 @@ describe('firmware/verifyEntropy', () => {
         expect(response.success).toEqual(true);
     });
 
-    it('bip39 extended (SPHINCS+ 768-bit) success', async () => {
-        const trezorEntropy = 'ab'.repeat(96);
-        const hostEntropy = 'cd'.repeat(32);
-        const { commitment, xpubs, fullPhraseDigest } = computeExtended(trezorEntropy, hostEntropy);
+    it.each([384, 576, 768])(
+        'bip39 extended (SPHINCS+ %i-bit) success without xpubs',
+        async strength => {
+            const trezorEntropy = 'ab'.repeat(strength / 8);
+            const hostEntropy = 'cd'.repeat(32);
+            const { commitment, fullPhraseDigest } = computeExtended(trezorEntropy, hostEntropy);
 
-        const response = await verifyEntropy({
-            strength: 768,
-            hostEntropy,
-            commitment,
-            trezorEntropy,
-            xpubs,
-            fullPhraseDigest,
-        });
-        expect(response.success).toEqual(true);
-    });
-
-    it('bip39 extended rejects a wrong xpub (comparison is real, not a no-op)', async () => {
-        const trezorEntropy = 'ab'.repeat(96);
-        const hostEntropy = 'cd'.repeat(32);
-        const { commitment, xpubs } = computeExtended(trezorEntropy, hostEntropy);
-
-        const response = await verifyEntropy({
-            strength: 768,
-            hostEntropy,
-            commitment,
-            trezorEntropy,
-            // swap the two paths' xpubs so neither matches its path anymore
-            xpubs: {
-                "m/84'/0'/0'": xpubs["m/44'/60'/0'"],
-                "m/44'/60'/0'": xpubs["m/84'/0'/0'"],
-            },
-        });
-        expect(response.success).toEqual(false);
-    });
-
-    it('bip39 extended (SPHINCS+ 384-bit) success', async () => {
-        // The smallest extended strength: sub-phrases are 12 words, so the base
-        // phrase takes a different `subLength` branch than the 768-bit case.
-        const trezorEntropy = '3a'.repeat(48);
-        const hostEntropy = '5c'.repeat(32);
-        const { commitment, xpubs, fullPhraseDigest } = computeExtended(trezorEntropy, hostEntropy);
-
-        const response = await verifyEntropy({
-            strength: 384,
-            hostEntropy,
-            commitment,
-            trezorEntropy,
-            xpubs,
-            fullPhraseDigest,
-        });
-        expect(response.success).toEqual(true);
-    });
+            const response = await verifyEntropy({
+                strength,
+                hostEntropy,
+                commitment,
+                trezorEntropy,
+                xpubs: {},
+                fullPhraseDigest,
+            });
+            expect(response).toEqual({ success: true });
+        },
+    );
 
     it('bip39 extended rejects a wrong full-phrase digest', async () => {
-        // Simulates a firmware that kept sub-phrase 1 honest - so the xpubs still
-        // verify - but derived the other two without the host entropy.
         const trezorEntropy = 'ab'.repeat(96);
         const hostEntropy = 'cd'.repeat(32);
-        const { commitment, xpubs } = computeExtended(trezorEntropy, hostEntropy);
+        const { commitment } = computeExtended(trezorEntropy, hostEntropy);
 
         const response = await verifyEntropy({
             strength: 768,
             hostEntropy,
             commitment,
             trezorEntropy,
-            xpubs,
+            xpubs: {},
             fullPhraseDigest: '00'.repeat(32),
+        });
+        expect(response).toEqual({
+            success: false,
+            error: 'verifyEntropy full phrase digest mismatch',
+        });
+    });
+
+    it('bip39 extended rejects a digest over different host entropy', async () => {
+        // A firmware that ignored the host entropy produces a digest the host
+        // cannot reproduce from the entropy it sent.
+        const trezorEntropy = 'ab'.repeat(96);
+        const hostEntropy = 'cd'.repeat(32);
+        const { commitment } = computeExtended(trezorEntropy, hostEntropy);
+        const { fullPhraseDigest } = computeExtended(trezorEntropy, '00'.repeat(32));
+
+        const response = await verifyEntropy({
+            strength: 768,
+            hostEntropy,
+            commitment,
+            trezorEntropy,
+            xpubs: {},
+            fullPhraseDigest,
         });
         expect(response.success).toEqual(false);
     });
 
     it('bip39 extended rejects a missing full-phrase digest', async () => {
-        // Optional on the wire, so a firmware that skipped the sub-phrases could
-        // otherwise stay silent. Extended strengths must require it.
+        // Optional on the wire, so extended strengths must require it.
         const trezorEntropy = 'ab'.repeat(96);
         const hostEntropy = 'cd'.repeat(32);
-        const { commitment, xpubs } = computeExtended(trezorEntropy, hostEntropy);
+        const { commitment } = computeExtended(trezorEntropy, hostEntropy);
 
         const response = await verifyEntropy({
             strength: 768,
             hostEntropy,
             commitment,
             trezorEntropy,
-            xpubs,
+            xpubs: {},
         });
-        expect(response.success).toEqual(false);
+        expect(response).toEqual({
+            success: false,
+            error: 'verifyEntropy missing full phrase digest',
+        });
     });
 
-    it('bip39 extended rejects xpubs derived from the concatenated phrase', async () => {
-        // Regression guard for the base-phrase rule. Deriving over all 72 words
-        // is exactly what this code did before the fix, and it made every
-        // SPHINCS+ wallet creation fail against real firmware.
+    it('bip39 extended rejects a wrong commitment', async () => {
         const trezorEntropy = 'ab'.repeat(96);
         const hostEntropy = 'cd'.repeat(32);
-        const { commitment, fullPhraseDigest } = computeExtended(trezorEntropy, hostEntropy);
-        const { xpubs } = computeExtended(trezorEntropy, hostEntropy, 'concatenated');
+        const { fullPhraseDigest } = computeExtended(trezorEntropy, hostEntropy);
 
         const response = await verifyEntropy({
             strength: 768,
             hostEntropy,
-            commitment,
+            commitment: '00'.repeat(32),
             trezorEntropy,
-            xpubs,
-            // A valid digest, so the failure can only come from the xpub check -
-            // otherwise this guard would pass on the missing-digest branch even
-            // with the base-phrase fix reverted.
+            xpubs: {},
             fullPhraseDigest,
         });
         expect(response.success).toEqual(false);
-        expect(response.error).toEqual('verifyEntropy xpub mismatch');
     });
 });

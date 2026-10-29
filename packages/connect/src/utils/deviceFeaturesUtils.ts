@@ -114,6 +114,17 @@ export const getUnavailableCapabilities = (features: Features, coins: CoinInfo[]
         list[info.shortcut.toLowerCase()] = 'no-capability';
     });
 
+    // An extended (36/54/72-word) mnemonic is SPHINCS+ only: the device derives no
+    // BIP-32 wallet from it, so CKB (for its SPHINCS+ accounts) is the only coin left.
+    if (features.sphincs_only) {
+        supported
+            .filter(info => !isCkbCoin(info) && !unavailable.includes(info))
+            .forEach(info => {
+                list[info.shortcut.toLowerCase()] = 'no-capability';
+                unavailable.push(info);
+            });
+    }
+
     // 3. check if firmware version is in range of CoinInfo.support
     supported
         .filter(info => !unavailable.includes(info))

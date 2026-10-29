@@ -785,6 +785,14 @@ export class Device extends TypedEmitter<DeviceEvents> implements IDevice {
                 getFirmwareType(feat),
             );
             this.availableTranslations = this._currentRelease?.translations ?? {};
+        } else if (
+            feat.sphincs_only !== undefined &&
+            feat.sphincs_only !== this._features?.sphincs_only
+        ) {
+            // sphincs_only is reported only while unlocked (undefined while locked
+            // means unknown, keep the last value) and changes on wipe/reset, without
+            // any firmware version change
+            this._unavailableCapabilities = getUnavailableCapabilities(feat, getAllNetworks());
         }
 
         this._features = feat;
