@@ -15,9 +15,20 @@ const getStaticSessionId = (device: WorkflowContext['device']) =>
             coin_name: 'Testnet',
             script_type: 'SPENDADDRESS',
         })
-        .then(({ message }) =>
+        .then(({ message }) => message.address)
+        .catch(async error => {
+            // An extended (36/54/72-word) mnemonic is SPHINCS+ only, so the device
+            // derives no testnet address from it. Such a device holds a single wallet
+            // and its device_id changes on wipe, so device_id alone identifies it.
+            if (error.code !== 'Failure_DataError') throw error;
+            await device.getFeatures();
+            if (!device.features.sphincs_only) throw error;
+
+            return 'sphincs-only';
+        })
+        .then(firstTestnetAddress =>
             createStaticSessionId({
-                firstTestnetAddress: message.address,
+                firstTestnetAddress,
                 deviceId: device.features.device_id!,
                 instance: device.getInstance(),
             }),

@@ -24,7 +24,7 @@ import { AbstractMethod } from '../core/AbstractMethod';
 import { getCoinInfo } from '../data/coinInfo';
 import type { AccountDescriptor } from '../device/DeviceCommands';
 import { isUtxoBased } from '../utils/accountUtils';
-import { isCkbCoin } from '../utils/coinInfoUtils';
+import { isCkbCoin, sphincsVariantFromAccountType } from '../utils/coinInfoUtils';
 import { validatePath } from '../utils/pathUtils';
 import { getFirmwareRange, validateParams } from './common/paramsValidator';
 import { checkXPubWithHashes } from './firmware/calculateXPubHash';
@@ -184,7 +184,16 @@ export default class DiscoverAccounts extends AbstractMethod<
     }
 
     async run({ sendCoreMessage }: MethodContext) {
-        const [unsupported, supported] = this.filterUnsupportedAccounts(this.params.coins);
+        // An extended (36/54/72-word) mnemonic is SPHINCS+ only: the device refuses
+        // every BIP-32 derivation, so only SPHINCS+ account types can be discovered.
+        const coins = this.getDevice().features?.sphincs_only
+            ? this.params.coins.filter(
+                  ({ account, coinInfo }) =>
+                      isCkbCoin(coinInfo) &&
+                      sphincsVariantFromAccountType(account.type) !== undefined,
+              )
+            : this.params.coins;
+        const [unsupported, supported] = this.filterUnsupportedAccounts(coins);
 
         unsupported.forEach(
             ({ account: { path: bip43, ...rest }, error, coinInfo, skip, offset }) => {

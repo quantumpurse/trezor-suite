@@ -80,6 +80,9 @@ export default class ResetDevice extends AbstractMethod<'resetDevice', PROTO.Res
 
         const getXPubs = async () => {
             const xpubs: XPubsPerBip43Path = {};
+            // An extended mnemonic (384/576/768 bits) is SPHINCS+ only and has no
+            // BIP-32 wallet; the device proves it with full_phrase_digest instead.
+            if ((this.params.strength ?? 0) > 256) return xpubs;
             for (const { path, address_n } of parsedPaths) {
                 const pubKey = await cmd.getPublicKey({ address_n }).catch(handleErr);
                 xpubs[path] = pubKey.xpub;

@@ -173,7 +173,27 @@ export const verifyEntropy = async ({
     fullPhraseDigest,
 }: VerifyEntropyOptions) => {
     try {
-        if (!trezorEntropy || !commitment || !strength || Object.keys(xpubs).length < 1) {
+        if (!trezorEntropy || !commitment || !strength) {
+            throw new Error('Missing verifyEntropy data');
+        }
+
+        // An extended mnemonic (384/576/768 bits) is SPHINCS+ only and has no
+        // BIP-32 wallet, so the device proves the secret with a digest of the
+        // whole mnemonic instead of xpubs. It is optional on the wire, so require it.
+        if (strength > 256) {
+            verifyCommitment(trezorEntropy, commitment);
+            const secret = getEntropy(trezorEntropy, hostEntropy, strength);
+            if (!fullPhraseDigest) {
+                throw new Error('verifyEntropy missing full phrase digest');
+            }
+            if (!computeFullPhraseDigest(secret).equals(Buffer.from(fullPhraseDigest, 'hex'))) {
+                throw new Error('verifyEntropy full phrase digest mismatch');
+            }
+
+            return { success: true as const };
+        }
+
+        if (Object.keys(xpubs).length < 1) {
             throw new Error('Missing verifyEntropy data');
         }
 
@@ -191,18 +211,6 @@ export const verifyEntropy = async ({
                 throw new Error('verifyEntropy xpub mismatch');
             }
         });
-
-        // For an extended mnemonic the device also binds the sub-phrases that feed
-        // SPHINCS+; require it, since a firmware that skipped them could otherwise
-        // omit the field silently.
-        if (strength > 256) {
-            if (!fullPhraseDigest) {
-                throw new Error('verifyEntropy missing full phrase digest');
-            }
-            if (!computeFullPhraseDigest(secret).equals(Buffer.from(fullPhraseDigest, 'hex'))) {
-                throw new Error('verifyEntropy full phrase digest mismatch');
-            }
-        }
 
         return { success: true as const };
     } catch (error) {
